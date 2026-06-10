@@ -59,6 +59,7 @@ export const videoTestimonials: VideoTestimonial[] = [
     patientName: 'Mrs. P.M.',
     reviewSnippet: 'Case of dengue shock syndrome with seizure and hepatitis.',
     stars: 5,
+    title: 'Patient Testimonial 5', // Added title for the 5th video
     // No treatmentTag for this video
     thumbnail: 'https://img.youtube.com/vi/yjB-UalZOMQ/hqdefault.jpg',
   },
