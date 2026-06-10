@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, Calendar, Clock, User, Phone, FileText, MapPin } from 'lucide-react';
+import { bookedSlots } from '../config/bookedSlots'; // Import booked slots
+import { toast } from 'react-toastify'; // Assuming react-toastify is installed
 
 interface AppointmentModalProps {
   isOpen: boolean;
@@ -15,11 +17,20 @@ interface FormState {
   reason: string;
 }
 
+// Helper to get today's date in local YYYY-MM-DD format
+const getTodayLocal = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 const initialForm: FormState = {
   name: '',
   phone: '',
   location: '',
-  date: '',
+  date: getTodayLocal(), // Set default date to today's local date
   timeSlot: '',
   reason: '',
 };
@@ -43,6 +54,19 @@ const generateTimeSlots = (startHour: number, startMinute: number, endHour: numb
     current.setMinutes(current.getMinutes() + interval);
   }
   return slots;
+};
+
+// Phone number cleaning function
+const cleanPhone = (phone: string) => {
+  let cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('0')) {
+    cleaned = '91' + cleaned.slice(1);
+  } else if (cleaned.length === 10) {
+    cleaned = '91' + cleaned;
+  } else if (cleaned.startsWith('91') && cleaned.length === 12) {
+    // already correct
+  }
+  return cleaned;
 };
 
 export default function AppointmentModal({ isOpen, onClose }: AppointmentModalProps) {
@@ -74,11 +98,13 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
   const availableDates = useMemo(() => {
     const dates = [];
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize today to start of day
+    // Use local date for min value and default value for date input field
+    const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    localToday.setHours(0, 0, 0, 0); // Normalize to start of day
 
     for (let i = 0; i < 30; i++) { // Start from today (i=0)
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
+      const d = new Date(localToday);
+      d.setDate(localToday.getDate() + i);
       const day = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
       
       let isValid = false;
@@ -98,8 +124,8 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
       
       if (isValid) {
         dates.push({
-          value: d.toISOString().split('T')[0],
-          label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+          value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+          label: new Date(d.getFullYear(), d.getMonth(), d.getDate()).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
           day,
         });
       }
@@ -110,7 +136,8 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
   // 2. Determine available locations based on selected date
   const availableLocations = useMemo(() => {
     if (!form.date) return [LOCATIONS.THERGAON, LOCATIONS.MANIPAL];
-    const day = new Date(form.date).getDay();
+    const parts = form.date.split('-');
+    const day = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2])).getDay();
     
     // Thergaon: Mon, Tue, Wed, Fri, Sat
     // Manipal: Tue, Wed, Thu, Fri, Sat, Sun
@@ -121,32 +148,42 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     return [LOCATIONS.THERGAON, LOCATIONS.MANIPAL]; // Tue, Wed, Fri, Sat: Both open
   }, [form.date]);
 
-  // 3. Generate time slots based on selected date AND location
+  // 3. Generate time slots based on selected date AND location, and filter booked slots
   const availableTimeSlots = useMemo(() => {
     if (!form.date || !form.location) return [];
 
-    const selectedDate = new Date(form.date);
-    const day = selectedDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+    const p = form.date.split('-');
+    const day = new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2])).getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+
+    let allSlots: string[] = [];
 
     if (form.location === LOCATIONS.THERGAON) {
       // Thergaon Clinic: Mon, Tue, Wed, Fri, Sat — 6:00 PM to 8:30 PM (last slot)
       if (day === 0 || day === 4) return []; // Closed on Sunday and Thursday
-      return generateTimeSlots(18, 0, 20, 30); // 6:00 PM to 8:30 PM (last slot)
-    }
-
-    if (form.location === LOCATIONS.MANIPAL) {
+      allSlots = generateTimeSlots(18, 0, 20, 30); // 6:00 PM to 8:30 PM (last slot)
+    } else if (form.location === LOCATIONS.MANIPAL) {
       // Manipal Hospital Baner
       if (day === 1) { // Monday
         return ['Dr. Teje is not available at Manipal on Mondays. Please select another day or choose Thergaon Clinic.'];
       } else if (day === 4) { // Thursday
-        return generateTimeSlots(14, 0, 20, 0); // 2:00 PM to 8:00 PM
+        allSlots = generateTimeSlots(14, 0, 20, 0); // 2:00 PM to 8:00 PM
       } else if (day === 0) { // Sunday
-        return generateTimeSlots(10, 0, 12, 0); // 10:00 AM to 12:00 PM
+        allSlots = generateTimeSlots(10, 0, 12, 0); // 10:00 AM to 12:00 PM
       } else { // Tue, Wed, Fri, Sat
-        return generateTimeSlots(9, 0, 15, 0); // 9:00 AM to 3:00 PM
+        allSlots = generateTimeSlots(9, 0, 15, 0); // 9:00 AM to 3:00 PM
       }
     }
-    return [];
+
+    // Filter out booked slots
+    const locationKey = form.location === LOCATIONS.THERGAON ? 'thergaon' : 'manipal';
+    const bookedKey = `${form.date}-${locationKey}`;
+    const blocked = bookedSlots[bookedKey] || [];
+    
+    return allSlots.map(slot => ({
+      slot,
+      isBooked: blocked.includes(slot)
+    }));
+
   }, [form.date, form.location]);
 
   // --- HANDLERS ---
@@ -162,7 +199,8 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
       // Smart Reset Logic
       if (name === 'location') {
         if (next.date) {
-          const day = new Date(next.date).getDay();
+          const dp = next.date.split('-');
+          const day = new Date(parseInt(dp[0]), parseInt(dp[1])-1, parseInt(dp[2])).getDay();
           if (value === LOCATIONS.THERGAON && (day === 0 || day === 4)) {
             next.date = ''; // Reset date if invalid for Thergaon
           } else if (value === LOCATIONS.MANIPAL && day === 1) {
@@ -173,7 +211,8 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
       }
 
       if (name === 'date') {
-        const day = new Date(value).getDay();
+        const vp = value.split('-');
+        const day = new Date(parseInt(vp[0]), parseInt(vp[1])-1, parseInt(vp[2])).getDay();
         if (next.location === LOCATIONS.THERGAON && (day === 0 || day === 4)) {
           next.location = ''; // Reset location if Thergaon is closed
         } else if (next.location === LOCATIONS.MANIPAL && day === 1) {
@@ -196,63 +235,102 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     if (!form.phone.trim()) newErrors.phone = 'Phone number is required';
     if (!form.location) newErrors.location = 'Location is required';
     if (!form.date) newErrors.date = 'Date is required';
-    if (!form.timeSlot || availableTimeSlots[0]?.includes('not available')) newErrors.timeSlot = 'Time slot is required';
+    
+    // Check if timeSlot is selected and not a "not available" message
+    const isTimeSlotValid = form.timeSlot && !availableTimeSlots[0]?.slot?.includes('not available');
+    if (!isTimeSlotValid) {
+      newErrors.timeSlot = 'Time slot is required';
+    } else {
+      // Check if the selected time slot is actually booked
+      const selectedSlotInfo = availableTimeSlots.find(s => s.slot === form.timeSlot);
+      if (selectedSlotInfo?.isBooked) {
+        newErrors.timeSlot = 'This time slot is already booked.';
+      }
+    }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const getDisplayDate = () => {
+    const raw = form.date; // format is "YYYY-MM-DD"
+    const parts = raw.split('-');
+    const dd = parts[2];
+    const mm = parts[1];
+    const yyyy = parts[0];
+    
+    const monthNames = [
+      '', 'January', 'February', 'March', 'April',
+      'May', 'June', 'July', 'August', 'September',
+      'October', 'November', 'December'
+    ];
+    
+    const dayNames = [
+      'Sunday', 'Monday', 'Tuesday', 'Wednesday',
+      'Thursday', 'Friday', 'Saturday'
+    ];
+
+    const dayOfWeek = dayNames[
+      new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd)).getDay()
+    ];
+
+    return `${dayOfWeek}, ${parseInt(dd)} ${monthNames[parseInt(mm)]} ${yyyy}`;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
-    const formattedDate = new Date(form.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-    
-    // Clean phone number for the API link (extract only digits)
-    let rawPhone = form.phone.replace(/\D/g, '');
-    // If user included 91 at the start, remove it to avoid duplication, then prepend 91
-    if (rawPhone.startsWith('91') && rawPhone.length > 10) {
-      rawPhone = rawPhone.substring(2);
-    }
-    const apiPhone = `91${rawPhone}`;
+    const appointmentDate = getDisplayDate();
+    const patientCleanedPhone = cleanPhone(form.phone);
 
-    // Generate the highly formatted confirmation link for the doctor to click
-    const confirmText = `Hello ${form.name}, 
+    // Confirmation message for the patient
+    const confirmationMessage = 
+      `Hello ${form.name} 👋,` +
+      `\n\nYour appointment with *Dr. Prathamesh Teje* has been successfully received! ✅` +
+      `\n\n📋 *Appointment Details:*` +
+      `\n📍 Location: ${form.location}` +
+      `\n📅 Date: ${appointmentDate}` +
+      `\n⏰ Time: ${form.timeSlot}` +
+      `\n\n✅ Your slot is confirmed.` +
+      `\nPlease arrive 5 minutes early.` +
+      `\n\nFor any changes or queries, reply to this message.` +
+      `\n\n— Dr. Teje's Clinic 🏥`;
 
-Your appointment with Dr. Prathamesh Teje has been successfully CONFIRMED! ✅
+    const confirmationLink = 
+      `https://wa.me/${patientCleanedPhone}?text=${encodeURIComponent(confirmationMessage)}`;
 
-📅 Date: ${formattedDate}
-⏰ Time Slot: ${form.timeSlot}
-📍 Location: ${form.location}
+    // WhatsApp message to Dr. Teje
+    const whatsappMessage = 
+      `Hello Dr. Teje, I would like to book an appointment.` +
+      `\n\n*Patient Name:* ${form.name}` +
+      `\n*Phone:* ${form.phone}` +
+      `\n*Location:* ${form.location}` +
+      `\n*Date:* ${appointmentDate}` +
+      `\n*Time Slot:* ${form.timeSlot}` +
+      `\n*Reason:* ${form.reason || 'Not specified'}` +
+      `\n\n---` +
+      `\n⚡ *Click here to instantly confirm this appointment via WhatsApp:*` +
+      `\n${confirmationLink}`;
 
-📌 Important Instructions:
-1. Please report 15 minutes prior to your booking time to ensure a smooth consultation.
-2. If you are visiting the Thergaon Clinic, here is the Google Maps location for easy navigation: https://maps.app.goo.gl/r5f3GisgXw6hA5o66 
-(If visiting Manipal Hospital, please report directly to the Baner branch OPD reception).
-
-Thank you,
-Dr. Prathamesh Teje's Clinic Team`;
-
-    const confirmLink = `https://api.whatsapp.com/send?phone=${apiPhone}&text=${encodeURIComponent(confirmText)}`;
-
-    const message = `Hello Dr. Teje, I would like to book an appointment.
-*Patient Name:* ${form.name}
-*Phone:* ${form.phone}
-*Location:* ${form.location}
-*Date:* ${formattedDate}
-*Time Slot:* ${form.timeSlot}
-*Reason:* ${form.reason || 'Not specified'}
-
----
-⚡ *Click here to instantly confirm this appointment via WhatsApp:*
-${confirmLink}`;
-
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/918999046916?text=${encodedMessage}`;
+    const whatsappUrl = 
+      `https://wa.me/918999046916?text=${encodeURIComponent(whatsappMessage)}`;
     
     window.open(whatsappUrl, '_blank');
     setForm(initialForm);
     onClose();
+
+    // Show success toast
+    toast.success("✅ Redirecting to WhatsApp! Dr. Teje will confirm your appointment shortly.", {
+      position: "top-center",
+      autoClose: 5000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+      theme: "colored",
+    });
   };
 
   if (!isOpen) return null;
@@ -334,18 +412,31 @@ ${confirmLink}`;
                 <label className="block font-sans text-xs font-semibold text-navy-700 uppercase tracking-wide mb-1.5">Time Slot *</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Clock size={16} className="text-gray-400" /></div>
-                  <select name="timeSlot" value={form.timeSlot} onChange={handleChange} disabled={!form.date || !form.location || availableTimeSlots[0]?.includes('not available')} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${errors.timeSlot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}>
+                  <select name="timeSlot" value={form.timeSlot} onChange={handleChange} disabled={!form.date || !form.location || availableTimeSlots[0]?.slot?.includes('not available')} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${errors.timeSlot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}>
                     <option value="">
                       {(!form.date || !form.location) ? 'Select date & location first' : 
-                       (availableTimeSlots[0]?.includes('not available') ? availableTimeSlots[0] : 'Select a slot')}
+                       (availableTimeSlots[0]?.slot?.includes('not available') ? availableTimeSlots[0].slot : 'Select a slot')}
                     </option>
-                    {!availableTimeSlots[0]?.includes('not available') && availableTimeSlots.map(slot => (
-                      <option key={slot} value={slot}>{slot}</option>
+                    {availableTimeSlots.map((slotInfo, index) => (
+                      slotInfo.slot.includes('not available') ? (
+                        <option key={index} value={slotInfo.slot} disabled className="text-gray-500">
+                          {slotInfo.slot}
+                        </option>
+                      ) : (
+                        <option 
+                          key={slotInfo.slot} 
+                          value={slotInfo.slot} 
+                          disabled={slotInfo.isBooked} 
+                          className={slotInfo.isBooked ? 'text-gray-500 italic' : ''}
+                        >
+                          {slotInfo.slot} {slotInfo.isBooked && '— Booked'}
+                        </option>
+                      )
                     ))}
                   </select>
                 </div>
                 {errors.timeSlot && <p className="text-red-500 text-xs mt-1">{errors.timeSlot}</p>}
-                {form.date && form.location && !availableTimeSlots[0]?.includes('not available') && (
+                {form.date && form.location && !availableTimeSlots[0]?.slot?.includes('not available') && (
                   <p className="text-gray-500 text-xs mt-1 font-sans">Slots are subject to availability. Dr. Teje's team will confirm via WhatsApp.</p>
                 )}
               </div>
