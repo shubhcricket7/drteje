@@ -38,10 +38,9 @@ const generateTimeSlots = (startHour: number, startMinute: number, endHour: numb
   end.setHours(endHour, endMinute, 0, 0);
 
   while (current <= end) {
-    const next = new Date(current.getTime() + interval * 60 * 1000);
     const formatTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-    slots.push(`${formatTime(current)} - ${formatTime(next)}`);
-    current = next;
+    slots.push(formatTime(current)); // Changed to single start time
+    current.setMinutes(current.getMinutes() + interval);
   }
   return slots;
 };
@@ -130,9 +129,9 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     const day = selectedDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
 
     if (form.location === LOCATIONS.THERGAON) {
-      // Thergaon Clinic: Mon, Tue, Wed, Fri, Sat — 6:00 PM to 8:30 PM
+      // Thergaon Clinic: Mon, Tue, Wed, Fri, Sat — 6:00 PM to 8:30 PM (last slot)
       if (day === 0 || day === 4) return []; // Closed on Sunday and Thursday
-      return generateTimeSlots(18, 0, 20, 30); // 6:00 PM to 8:30 PM
+      return generateTimeSlots(18, 0, 20, 30); // 6:00 PM to 8:30 PM (last slot)
     }
 
     if (form.location === LOCATIONS.MANIPAL) {
