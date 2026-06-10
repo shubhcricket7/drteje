@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { X, Calendar, Clock, User, Phone, FileText, MapPin } from 'lucide-react';
 import { bookedSlots } from '../config/bookedSlots'; // Import booked slots
 import { toast } from 'react-toastify'; // Assuming react-toastify is installed
+import { supabase } from '../supabaseClient'; // Import Supabase client
 
 interface AppointmentModalProps {
   isOpen: boolean;
@@ -72,6 +73,7 @@ const cleanPhone = (phone: string) => {
 export default function AppointmentModal({ isOpen, onClose }: AppointmentModalProps) {
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<Partial<FormState>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Close on escape key
   useEffect(() => {
@@ -164,7 +166,7 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     } else if (form.location === LOCATIONS.MANIPAL) {
       // Manipal Hospital Baner
       if (day === 1) { // Monday
-        return ['Dr. Teje is not available at Manipal on Mondays. Please select another day or choose Thergaon Clinic.'];
+        return [{ slot: 'Dr. Teje is not available at Manipal on Mondays. Please select another day or choose Thergaon Clinic.', isBooked: true }];
       } else if (day === 4) { // Thursday
         allSlots = generateTimeSlots(14, 0, 20, 0); // 2:00 PM to 8:00 PM
       } else if (day === 0) { // Sunday
@@ -237,7 +239,7 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     if (!form.date) newErrors.date = 'Date is required';
     
     // Check if timeSlot is selected and not a "not available" message
-    const isTimeSlotValid = form.timeSlot && !availableTimeSlots[0]?.slot?.includes('not available');
+    const isTimeSlotValid = form.timeSlot && !availableTimeSlots.some(s => s.slot === form.timeSlot && s.isBooked);
     if (!isTimeSlotValid) {
       newErrors.timeSlot = 'Time slot is required';
     } else {
@@ -252,83 +254,61 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     return Object.keys(newErrors).length === 0;
   };
 
-  const getDisplayDate = () => {
-    const raw = form.date; // format is "YYYY-MM-DD"
-    const parts = raw.split('-');
-    const dd = parts[2];
-    const mm = parts[1];
-    const yyyy = parts[0];
-    
-    const monthNames = [
-      '', 'January', 'February', 'March', 'April',
-      'May', 'June', 'July', 'August', 'September',
-      'October', 'November', 'December'
-    ];
-    
-    const dayNames = [
-      'Sunday', 'Monday', 'Tuesday', 'Wednesday',
-      'Thursday', 'Friday', 'Saturday'
-    ];
-
-    const dayOfWeek = dayNames[
-      new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd)).getDay()
-    ];
-
-    return `${dayOfWeek}, ${parseInt(dd)} ${monthNames[parseInt(mm)]} ${yyyy}`;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
-    const appointmentDate = getDisplayDate();
-    const patientCleanedPhone = cleanPhone(form.phone);
+    setIsSubmitting(true);
 
-    // Confirmation message for the patient
-    const confirmationMessage = 
-      `Hello ${form.name} 👋` +
-      `\n\nYour appointment with *Dr. Prathamesh Teje* is confirmed! ✅` +
-      `\n\n📍 ${form.location}` +
-      `\n📅 ${appointmentDate}` +
-      `\n⏰ ${form.timeSlot}` +
-      `\n\nPlease arrive 5 mins early.` +
-      `\nQueries? Reply to this message.` +
-      `\n\n— Dr. Teje's Clinic 🏥`;
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .insert([
+          {
+            patient_name: form.name,
+            phone: form.phone,
+            location: form.location,
+            appointment_date: form.date,
+            appointment_time: form.timeSlot,
+            reason: form.reason,
+            status: 'pending',
+          },
+        ]);
 
-    const confirmationLink = 
-      `https://wa.me/${patientCleanedPhone}?text=${encodeURIComponent(confirmationMessage)}`;
+      if (error) {
+        throw error;
+      }
 
-    // WhatsApp message to Dr. Teje
-    const whatsappMessage = 
-      `Hello Dr. Teje, I would like to book an appointment.` +
-      `\n\n*Patient Name:* ${form.name}` +
-      `\n*Phone:* ${form.phone}` +
-      `\n*Location:* ${form.location}` +
-      `\n*Date:* ${appointmentDate}` +
-      `\n*Time Slot:* ${form.timeSlot}` +
-      `\n*Reason:* ${form.reason || 'Not specified'}` +
-      `\n\n---` +
-      `\n⚡ *Click here to instantly confirm this appointment via WhatsApp:*` +
-      `\n${confirmationLink}`;
+      // Show success toast
+      toast.success("✅ Appointment request submitted successfully.", {
+        position: "top-center",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "colored",
+      });
 
-    const whatsappUrl = 
-      `https://wa.me/918999046916?text=${encodeURIComponent(whatsappMessage)}`;
-    
-    window.open(whatsappUrl, '_blank');
-    setForm(initialForm);
-    onClose();
+      setForm(initialForm); // Clear the form
+      onClose(); // Close the modal
 
-    // Show success toast
-    toast.success("✅ Redirecting to WhatsApp! Dr. Teje will confirm your appointment shortly.", {
-      position: "top-center",
-      autoClose: 5000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-      progress: undefined,
-      theme: "colored",
-    });
+    } catch (error: any) {
+      console.error('Error booking appointment:', error.message);
+      toast.error(`❌ Failed to book appointment: ${error.message}`, {
+        position: "top-center",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "colored",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -451,10 +431,10 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
 
             {/* Submit */}
             <div className="pt-2">
-              <button type="submit" className="w-full bg-teal-500 hover:bg-teal-600 text-white font-sans font-semibold py-3.5 rounded-lg shadow-md hover:shadow-lg transition-all duration-200">
-                Submit Appointment Request
+              <button type="submit" disabled={isSubmitting} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-sans font-semibold py-3.5 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                {isSubmitting ? 'Submitting...' : 'Submit Appointment Request'}
               </button>
-              <p className="text-center text-gray-400 text-xs mt-3 font-sans">You will be redirected to WhatsApp to confirm your booking.</p>
+              <p className="text-center text-gray-400 text-xs mt-3 font-sans">Your appointment request will be reviewed.</p>
             </div>
 
           </form>
