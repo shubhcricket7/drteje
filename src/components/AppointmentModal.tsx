@@ -29,6 +29,23 @@ const LOCATIONS = {
   MANIPAL: 'Manipal Hospital',
 };
 
+// Helper to generate time slots
+const generateTimeSlots = (startHour: number, startMinute: number, endHour: number, endMinute: number, interval: number = 15) => {
+  const slots: string[] = [];
+  let current = new Date();
+  current.setHours(startHour, startMinute, 0, 0);
+  let end = new Date();
+  end.setHours(endHour, endMinute, 0, 0);
+
+  while (current <= end) {
+    const next = new Date(current.getTime() + interval * 60 * 1000);
+    const formatTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    slots.push(`${formatTime(current)} - ${formatTime(next)}`);
+    current = next;
+  }
+  return slots;
+};
+
 export default function AppointmentModal({ isOpen, onClose }: AppointmentModalProps) {
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<Partial<FormState>>({});
@@ -54,12 +71,13 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
 
   // --- DYNAMIC SCHEDULING LOGIC ---
 
-  // 1. Generate available dates (Next 30 days) based on selected location
+  // 1. Generate available dates (Next 30 days including today) based on selected location
   const availableDates = useMemo(() => {
     const dates = [];
     const today = new Date();
-    
-    for (let i = 1; i <= 30; i++) {
+    today.setHours(0, 0, 0, 0); // Normalize today to start of day
+
+    for (let i = 0; i < 30; i++) { // Start from today (i=0)
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const day = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
@@ -68,13 +86,15 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
 
       if (!form.location) {
         // If no location selected, show date if AT LEAST ONE location is open
-        if (day !== 0) isValid = true;
+        // Thergaon: Mon, Tue, Wed, Fri, Sat
+        // Manipal: Tue, Wed, Thu, Fri, Sat, Sun
+        if (day !== 0) isValid = true; // Both closed on Sunday
       } else if (form.location === LOCATIONS.THERGAON) {
         // Thergaon is closed on Thursday (4) and Sunday (0)
         if (day !== 0 && day !== 4) isValid = true;
       } else if (form.location === LOCATIONS.MANIPAL) {
-        // Manipal is ONLY open on Thursday (4) and Friday (5)
-        if (day === 4 || day === 5) isValid = true;
+        // Manipal is closed on Monday (1)
+        if (day !== 1) isValid = true;
       }
       
       if (isValid) {
@@ -93,23 +113,39 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     if (!form.date) return [LOCATIONS.THERGAON, LOCATIONS.MANIPAL];
     const day = new Date(form.date).getDay();
     
+    // Thergaon: Mon, Tue, Wed, Fri, Sat
+    // Manipal: Tue, Wed, Thu, Fri, Sat, Sun
+
+    if (day === 0) return [LOCATIONS.MANIPAL]; // Sunday: Only Manipal
+    if (day === 1) return [LOCATIONS.THERGAON]; // Monday: Only Thergaon
     if (day === 4) return [LOCATIONS.MANIPAL]; // Thursday: Only Manipal
-    if (day === 5) return [LOCATIONS.THERGAON, LOCATIONS.MANIPAL]; // Friday: Both open
-    if (day === 0) return []; // Sunday: Both closed
-    return [LOCATIONS.THERGAON]; // Mon, Tue, Wed, Sat: Only Thergaon
+    return [LOCATIONS.THERGAON, LOCATIONS.MANIPAL]; // Tue, Wed, Fri, Sat: Both open
   }, [form.date]);
 
   // 3. Generate time slots based on selected date AND location
   const availableTimeSlots = useMemo(() => {
     if (!form.date || !form.location) return [];
 
+    const selectedDate = new Date(form.date);
+    const day = selectedDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+
     if (form.location === LOCATIONS.THERGAON) {
-      return ['6:00 PM - 6:30 PM', '6:30 PM - 7:00 PM', '7:00 PM - 7:30 PM', '7:30 PM - 8:00 PM', '8:00 PM - 8:30 PM'];
+      // Thergaon Clinic: Mon, Tue, Wed, Fri, Sat — 6:00 PM to 8:30 PM
+      if (day === 0 || day === 4) return []; // Closed on Sunday and Thursday
+      return generateTimeSlots(18, 0, 20, 30); // 6:00 PM to 8:30 PM
     }
 
     if (form.location === LOCATIONS.MANIPAL) {
-      // Manipal is strictly 9:00 AM - 3:00 PM on Thu & Fri
-      return ['9:00 AM - 10:00 AM', '10:00 AM - 11:00 AM', '11:00 AM - 12:00 PM', '12:00 PM - 1:00 PM', '1:00 PM - 2:00 PM', '2:00 PM - 3:00 PM'];
+      // Manipal Hospital Baner
+      if (day === 1) { // Monday
+        return ['Dr. Teje is not available at Manipal on Mondays. Please select another day or choose Thergaon Clinic.'];
+      } else if (day === 4) { // Thursday
+        return generateTimeSlots(14, 0, 20, 0); // 2:00 PM to 8:00 PM
+      } else if (day === 0) { // Sunday
+        return generateTimeSlots(10, 0, 12, 0); // 10:00 AM to 12:00 PM
+      } else { // Tue, Wed, Fri, Sat
+        return generateTimeSlots(9, 0, 15, 0); // 9:00 AM to 3:00 PM
+      }
     }
     return [];
   }, [form.date, form.location]);
@@ -130,7 +166,7 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
           const day = new Date(next.date).getDay();
           if (value === LOCATIONS.THERGAON && (day === 0 || day === 4)) {
             next.date = ''; // Reset date if invalid for Thergaon
-          } else if (value === LOCATIONS.MANIPAL && day !== 4 && day !== 5) {
+          } else if (value === LOCATIONS.MANIPAL && day === 1) {
             next.date = ''; // Reset date if invalid for Manipal
           }
         }
@@ -140,9 +176,9 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
       if (name === 'date') {
         const day = new Date(value).getDay();
         if (next.location === LOCATIONS.THERGAON && (day === 0 || day === 4)) {
-          next.location = day === 4 ? LOCATIONS.MANIPAL : '';
-        } else if (next.location === LOCATIONS.MANIPAL && day !== 4 && day !== 5) {
-          next.location = day !== 0 ? LOCATIONS.THERGAON : '';
+          next.location = ''; // Reset location if Thergaon is closed
+        } else if (next.location === LOCATIONS.MANIPAL && day === 1) {
+          next.location = ''; // Reset location if Manipal is closed
         }
         next.timeSlot = ''; // Always reset time slot
       }
@@ -161,7 +197,7 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     if (!form.phone.trim()) newErrors.phone = 'Phone number is required';
     if (!form.location) newErrors.location = 'Location is required';
     if (!form.date) newErrors.date = 'Date is required';
-    if (!form.timeSlot) newErrors.timeSlot = 'Time slot is required';
+    if (!form.timeSlot || availableTimeSlots[0]?.includes('not available')) newErrors.timeSlot = 'Time slot is required';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -299,14 +335,20 @@ ${confirmLink}`;
                 <label className="block font-sans text-xs font-semibold text-navy-700 uppercase tracking-wide mb-1.5">Time Slot *</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Clock size={16} className="text-gray-400" /></div>
-                  <select name="timeSlot" value={form.timeSlot} onChange={handleChange} disabled={!form.date || !form.location} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${errors.timeSlot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}>
-                    <option value="">{(!form.date || !form.location) ? 'Select date & location first' : 'Select a slot'}</option>
-                    {availableTimeSlots.map(slot => (
+                  <select name="timeSlot" value={form.timeSlot} onChange={handleChange} disabled={!form.date || !form.location || availableTimeSlots[0]?.includes('not available')} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${errors.timeSlot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}>
+                    <option value="">
+                      {(!form.date || !form.location) ? 'Select date & location first' : 
+                       (availableTimeSlots[0]?.includes('not available') ? availableTimeSlots[0] : 'Select a slot')}
+                    </option>
+                    {!availableTimeSlots[0]?.includes('not available') && availableTimeSlots.map(slot => (
                       <option key={slot} value={slot}>{slot}</option>
                     ))}
                   </select>
                 </div>
                 {errors.timeSlot && <p className="text-red-500 text-xs mt-1">{errors.timeSlot}</p>}
+                {form.date && form.location && !availableTimeSlots[0]?.includes('not available') && (
+                  <p className="text-gray-500 text-xs mt-1 font-sans">Slots are subject to availability. Dr. Teje's team will confirm via WhatsApp.</p>
+                )}
               </div>
             </div>
 
