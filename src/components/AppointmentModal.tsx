@@ -286,15 +286,13 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
 
     // Confirmation message for the patient
     const confirmationMessage = 
-      `Hello ${form.name} 👋,` +
-      `\n\nYour appointment with *Dr. Prathamesh Teje* has been successfully received! ✅` +
-      `\n\n📋 *Appointment Details:*` +
-      `\n📍 Location: ${form.location}` +
-      `\n📅 Date: ${appointmentDate}` +
-      `\n⏰ Time: ${form.timeSlot}` +
-      `\n\n✅ Your slot is confirmed.` +
-      `\nPlease arrive 5 minutes early.` +
-      `\n\nFor any changes or queries, reply to this message.` +
+      `Hello ${form.name} 👋` +
+      `\n\nYour appointment with *Dr. Prathamesh Teje* is confirmed! ✅` +
+      `\n\n📍 ${form.location}` +
+      `\n📅 ${appointmentDate}` +
+      `\n⏰ ${form.timeSlot}` +
+      `\n\nPlease arrive 5 mins early.` +
+      `\nQueries? Reply to this message.` +
       `\n\n— Dr. Teje's Clinic 🏥`;
 
     const confirmationLink = 
