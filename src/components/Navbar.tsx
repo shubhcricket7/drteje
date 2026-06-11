@@ -44,18 +44,27 @@ export default function Navbar({ currentPage, onNavigate, onOpenModal }: NavbarP
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <button
-              onClick={() => handleNav('home')}
-              className="flex items-center gap-3 group flex-shrink-0"
-            >
-              <div className="w-10 h-10 rounded-full bg-navy-800 flex items-center justify-center flex-shrink-0 group-hover:bg-teal-500 transition-colors duration-200">
-                <span className="text-white font-serif font-bold text-sm">DT</span>
-              </div>
-              <div className="leading-tight text-left">
-                <div className="font-serif font-bold text-navy-800 text-base leading-tight">Dr. Teje</div>
-                <div className="font-sans text-xs text-teal-500 font-medium">Physician & Diabetologist</div>
-              </div>
-            </button>
+ <button
+  onClick={() => handleNav('home')}
+  className="flex items-center gap-3 group flex-shrink-0"
+>
+  <div className="w-10 h-10 flex items-center justify-center flex-shrink-0">
+    <img
+      src="/logo.svg"
+      alt="Dr. Teje Logo"
+      className="w-10 h-10 object-contain"
+    />
+  </div>
+
+  <div className="leading-tight text-left">
+    <div className="font-serif font-bold text-navy-800 text-base leading-tight">
+      Dr. Teje
+    </div>
+    <div className="font-sans text-xs text-teal-500 font-medium">
+      Physician & Diabetologist
+    </div>
+  </div>
+</button>
 
             {/* Desktop Nav */}
             <nav className="hidden lg:flex items-center gap-6">
