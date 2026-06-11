@@ -88,7 +88,7 @@ export default function HomePage({ onNavigate, onOpenModal }: HomePageProps) {
 
               <h1 className="font-serif text-3xl md:text-4xl lg:text-5xl font-bold leading-tight mb-4 text-balance">
                 Diagnosis-First.<br />
-                <span className="text-teal-400">Science-Backed.</span><br />
+                <span className="text-teal-400">Guideline-Based.</span><br />
                 Patient-Centered.
               </h1>
 
@@ -273,7 +273,7 @@ export default function HomePage({ onNavigate, onOpenModal }: HomePageProps) {
           </div>
           <div className="text-center">
             <a
-              href="https://www.google.com/search?q=Dr+Prathamesh+Teje+Pimpri+Chinchwad+reviews" // Replace with actual Google Business review page URL
+              href="https://share.google/yo4EwenXmEjtt9dx7"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full max-w-md mx-auto bg-teal-500 text-white rounded-lg py-4 px-6 font-sans font-semibold text-base flex items-center justify-center gap-2 transition-colors duration-200 hover:bg-teal-600"
