@@ -13,8 +13,9 @@ import BlogPostPage from './pages/BlogPostPage';
 import AppointmentModal from './components/AppointmentModal';
 import ScrollToTop from './components/ScrollToTop';
 import BackButton from './components/BackButton'; // New import
+import AdminPage from './pages/AdminPage'; // New import for AdminPage
 
-type Page = 'home' | 'about' | 'expertise' | 'services' | 'testimonials' | 'appointments' | 'blog' | 'contact' | `blog-post-${string}`;
+type Page = 'home' | 'about' | 'expertise' | 'services' | 'testimonials' | 'appointments' | 'blog' | 'contact' | `blog-post-${string}` | 'admin';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -54,6 +55,8 @@ function App() {
         return <BlogPage onNavigate={navigate} />;
       case 'contact':
         return <ContactPage onNavigate={navigate} />;
+      case 'admin': // New case for AdminPage
+        return <AdminPage />;
       default:
         return <HomePage onNavigate={navigate} onOpenModal={openModal} />;
     }

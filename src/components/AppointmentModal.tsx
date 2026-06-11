@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, Calendar, Clock, User, Phone, FileText, MapPin } from 'lucide-react';
-import { bookedSlots } from '../config/bookedSlots'; // Import booked slots
-import { toast } from 'react-toastify'; // Assuming react-toastify is installed
-import { supabase } from '../supabaseClient'; // Import Supabase client
+import { toast } from 'react-toastify';
+import { supabase } from '../lib/supabase'; // Import supabase client
 
 interface AppointmentModalProps {
   isOpen: boolean;
@@ -73,7 +72,13 @@ const cleanPhone = (phone: string) => {
 export default function AppointmentModal({ isOpen, onClose }: AppointmentModalProps) {
   const [form, setForm] = useState<FormState>(initialForm);
   const [errors, setErrors] = useState<Partial<FormState>>({});
+  const [blockedSlots, setBlockedSlots] = useState<string[]>([]); // Individual blocked slots from Supabase
+  const [blockedFullDays, setBlockedFullDays] = useState<{ date: string; location: string }[]>([]);
+  const [blockedCustomHours, setBlockedCustomHours] = useState<{ date: string; location: string; from: string; to: string }[]>([]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   // Close on escape key
   useEffect(() => {
@@ -94,46 +99,84 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     return () => document.body.style.overflow = 'unset';
   }, [isOpen]);
 
+  // Fetch all blocked slots (full days, custom hours, individual slots) from Supabase
+  useEffect(() => {
+    const fetchAllBlockedSlots = async () => {
+      const { data, error } = await supabase
+        .from('blocked_slots')
+        .select('blocked_date, location, time_slot, block_type, from_time, to_time');
+
+      if (error) {
+        console.error('Error fetching blocked slots:', error);
+        return;
+      }
+
+      const slots: string[] = [];
+      const fullDays: { date: string; location: string }[] = [];
+      const customHours: { date: string; location: string; from: string; to: string }[] = [];
+
+      data?.forEach(block => {
+        if (block.block_type === 'slot' && block.time_slot) {
+          slots.push(`${block.blocked_date}-${block.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal'}-${block.time_slot}`);
+        } else if (block.block_type === 'full_day') {
+          fullDays.push({ date: block.blocked_date, location: block.location });
+        } else if (block.block_type === 'custom_hours' && block.from_time && block.to_time) {
+          customHours.push({ date: block.blocked_date, location: block.location, from: block.from_time, to: block.to_time });
+        }
+      });
+      setBlockedSlots(slots);
+      setBlockedFullDays(fullDays);
+      setBlockedCustomHours(customHours);
+    };
+
+    if (isOpen) {
+      fetchAllBlockedSlots();
+    }
+  }, [isOpen]);
+
   // --- DYNAMIC SCHEDULING LOGIC ---
 
-  // 1. Generate available dates (Next 30 days including today) based on selected location
+  // 1. Generate available dates (Next 30 days including today) based on selected location and full_day blocks
   const availableDates = useMemo(() => {
     const dates = [];
     const today = new Date();
-    // Use local date for min value and default value for date input field
     const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    localToday.setHours(0, 0, 0, 0); // Normalize to start of day
+    localToday.setHours(0, 0, 0, 0);
 
-    for (let i = 0; i < 30; i++) { // Start from today (i=0)
+    for (let i = 0; i < 30; i++) {
       const d = new Date(localToday);
       d.setDate(localToday.getDate() + i);
-      const day = d.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+      const day = d.getDay();
+      const dateString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       
       let isValid = false;
+      let isBlockedFullDay = false;
 
-      if (!form.location) {
-        // If no location selected, show date if AT LEAST ONE location is open
-        // Thergaon: Mon, Tue, Wed, Fri, Sat
-        // Manipal: Tue, Wed, Thu, Fri, Sat, Sun
-        if (day !== 0) isValid = true; // Both closed on Sunday
-      } else if (form.location === LOCATIONS.THERGAON) {
-        // Thergaon is closed on Thursday (4) and Sunday (0)
-        if (day !== 0 && day !== 4) isValid = true;
-      } else if (form.location === LOCATIONS.MANIPAL) {
-        // Manipal is closed on Monday (1)
-        if (day !== 1) isValid = true;
+      // Check for full day blocks
+      if (blockedFullDays.some(b => b.date === dateString && (b.location === 'All Locations' || b.location === form.location))) {
+        isBlockedFullDay = true;
+      }
+
+      if (!isBlockedFullDay) {
+        if (!form.location) {
+          if (day !== 0) isValid = true;
+        } else if (form.location === LOCATIONS.THERGAON) {
+          if (day !== 0 && day !== 4) isValid = true;
+        } else if (form.location === LOCATIONS.MANIPAL) {
+          if (day !== 1) isValid = true;
+        }
       }
       
       if (isValid) {
         dates.push({
-          value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+          value: dateString,
           label: new Date(d.getFullYear(), d.getMonth(), d.getDate()).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
           day,
         });
       }
     }
     return dates;
-  }, [form.location]);
+  }, [form.location, blockedFullDays]);
 
   // 2. Determine available locations based on selected date
   const availableLocations = useMemo(() => {
@@ -141,52 +184,66 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     const parts = form.date.split('-');
     const day = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2])).getDay();
     
-    // Thergaon: Mon, Tue, Wed, Fri, Sat
-    // Manipal: Tue, Wed, Thu, Fri, Sat, Sun
-
-    if (day === 0) return [LOCATIONS.MANIPAL]; // Sunday: Only Manipal
-    if (day === 1) return [LOCATIONS.THERGAON]; // Monday: Only Thergaon
-    if (day === 4) return [LOCATIONS.MANIPAL]; // Thursday: Only Manipal
-    return [LOCATIONS.THERGAON, LOCATIONS.MANIPAL]; // Tue, Wed, Fri, Sat: Both open
+    if (day === 0) return [LOCATIONS.MANIPAL];
+    if (day === 1) return [LOCATIONS.THERGAON];
+    if (day === 4) return [LOCATIONS.MANIPAL];
+    return [LOCATIONS.THERGAON, LOCATIONS.MANIPAL];
   }, [form.date]);
 
-  // 3. Generate time slots based on selected date AND location, and filter booked slots
+  // 3. Generate time slots based on selected date AND location, and filter booked/blocked slots
   const availableTimeSlots = useMemo(() => {
     if (!form.date || !form.location) return [];
 
     const p = form.date.split('-');
-    const day = new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2])).getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+    const day = new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2])).getDay();
 
     let allSlots: string[] = [];
 
     if (form.location === LOCATIONS.THERGAON) {
-      // Thergaon Clinic: Mon, Tue, Wed, Fri, Sat — 6:00 PM to 8:30 PM (last slot)
-      if (day === 0 || day === 4) return []; // Closed on Sunday and Thursday
+      if (day === 0 || day === 4) return [];
       allSlots = generateTimeSlots(18, 0, 20, 30); // 6:00 PM to 8:30 PM (last slot)
     } else if (form.location === LOCATIONS.MANIPAL) {
-      // Manipal Hospital Baner
-      if (day === 1) { // Monday
+      if (day === 1) {
         return [{ slot: 'Dr. Teje is not available at Manipal on Mondays. Please select another day or choose Thergaon Clinic.', isBooked: true }];
-      } else if (day === 4) { // Thursday
+      } else if (day === 4) {
         allSlots = generateTimeSlots(14, 0, 20, 0); // 2:00 PM to 8:00 PM
-      } else if (day === 0) { // Sunday
+      } else if (day === 0) {
         allSlots = generateTimeSlots(10, 0, 12, 0); // 10:00 AM to 12:00 PM
-      } else { // Tue, Wed, Fri, Sat
+      } else {
         allSlots = generateTimeSlots(9, 0, 15, 0); // 9:00 AM to 3:00 PM
       }
     }
 
-    // Filter out booked slots
     const locationKey = form.location === LOCATIONS.THERGAON ? 'thergaon' : 'manipal';
-    const bookedKey = `${form.date}-${locationKey}`;
-    const blocked = bookedSlots[bookedKey] || [];
     
-    return allSlots.map(slot => ({
-      slot,
-      isBooked: blocked.includes(slot)
-    }));
+    // Filter out individually blocked slots
+    const filteredSlots = allSlots.filter(slot => {
+      const slotKey = `${form.date}-${locationKey}-${slot}`;
+      return !blockedSlots.includes(slotKey);
+    });
 
-  }, [form.date, form.location]);
+    // Filter out custom hour blocks
+    const customBlockedForDateLocation = blockedCustomHours.filter(b => 
+      b.blocked_date === form.date && (b.location === 'All Locations' || b.location === form.location)
+    );
+
+    const finalSlots = filteredSlots.map(slot => {
+      let isCustomBlocked = false;
+      for (const block of customBlockedForDateLocation) {
+        const slotTime = new Date(`2000/01/01 ${slot}`);
+        const fromTime = new Date(`2000/01/01 ${block.from}`);
+        const toTime = new Date(`2000/01/01 ${block.to}`);
+        if (slotTime >= fromTime && slotTime < toTime) { // Block until 'to' time, not including 'to'
+          isCustomBlocked = true;
+          break;
+        }
+      }
+      return { slot, isBooked: isCustomBlocked };
+    });
+
+    return finalSlots;
+
+  }, [form.date, form.location, blockedSlots, blockedCustomHours]);
 
   // --- HANDLERS ---
 
@@ -238,12 +295,10 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     if (!form.location) newErrors.location = 'Location is required';
     if (!form.date) newErrors.date = 'Date is required';
     
-    // Check if timeSlot is selected and not a "not available" message
-    const isTimeSlotValid = form.timeSlot && !availableTimeSlots.some(s => s.slot === form.timeSlot && s.isBooked);
+    const isTimeSlotValid = form.timeSlot && !availableTimeSlots[0]?.slot?.includes('not available');
     if (!isTimeSlotValid) {
       newErrors.timeSlot = 'Time slot is required';
     } else {
-      // Check if the selected time slot is actually booked
       const selectedSlotInfo = availableTimeSlots.find(s => s.slot === form.timeSlot);
       if (selectedSlotInfo?.isBooked) {
         newErrors.timeSlot = 'This time slot is already booked.';
@@ -254,33 +309,120 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     return Object.keys(newErrors).length === 0;
   };
 
+  const getDisplayDate = () => {
+    const raw = form.date; // format is "YYYY-MM-DD"
+    const parts = raw.split('-');
+    const dd = parseInt(parts[2]);
+    const mm = parseInt(parts[1]);
+    const yyyy = parseInt(parts[0]);
+    
+    const monthNames = [
+      '', 'January', 'February', 'March', 'April',
+      'May', 'June', 'July', 'August', 'September',
+      'October', 'November', 'December'
+    ];
+    
+    const dayNames = [
+      'Sunday', 'Monday', 'Tuesday', 'Wednesday',
+      'Thursday', 'Friday', 'Saturday'
+    ];
+
+    const dayOfWeek = dayNames[
+      new Date(yyyy, mm - 1, dd).getDay()
+    ];
+
+    return `${dayOfWeek}, ${dd} ${monthNames[mm]} ${yyyy}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setIsSubmitting(true);
+    setSubmitError('');
+    setSubmitSuccess(false);
 
     try {
-      const { data, error } = await supabase
+      // 1. Save appointment to Supabase
+      const { error: appointmentError } = await supabase
         .from('appointments')
-        .insert([
-          {
-            patient_name: form.name,
-            phone: form.phone,
-            location: form.location,
-            appointment_date: form.date,
-            appointment_time: form.timeSlot,
-            reason: form.reason,
-            status: 'pending',
-          },
-        ]);
+        .insert({
+          patient_name: form.name,
+          phone: form.phone,
+          location: form.location,
+          appointment_date: form.date,
+          time_slot: form.timeSlot,
+          reason: form.reason || 'Not specified',
+          status: 'pending'
+        });
 
-      if (error) {
-        throw error;
+      if (appointmentError) {
+        console.error('Appointment save error:', appointmentError);
+        setSubmitError('Could not save appointment. Please try again.');
+        toast.error('Could not save appointment. Please try again.');
+        setIsSubmitting(false);
+        return; // STOP here — do not open WhatsApp if save failed
       }
 
-      // Show success toast
-      toast.success("✅ Appointment request submitted successfully.", {
+      // 2. Block the slot in Supabase
+      const locationKey = form.location
+        .toLowerCase().includes('thergaon') 
+        ? 'thergaon' : 'manipal';
+
+      const { error: blockError } = await supabase
+        .from('blocked_slots')
+        .insert({
+          location: locationKey,
+          blocked_date: form.date,
+          time_slot: form.timeSlot,
+          block_type: 'slot',
+          reason: 'Patient booking - ' + form.name
+        });
+
+      if (blockError) {
+        console.error('Error blocking slot:', blockError);
+        setSubmitError('Could not block slot. Please try again.');
+        toast.error('Could not block slot. Please try again.');
+        setIsSubmitting(false);
+        return; // STOP here — do not open WhatsApp if block failed
+      }
+
+      const appointmentDate = getDisplayDate();
+      const patientCleanedPhone = cleanPhone(form.phone);
+
+      const confirmationMessage = 
+        `Hello ${form.name} 👋` +
+        `\n\nYour appointment with *Dr. Prathamesh Teje* is confirmed! ✅` +
+        `\n\n📍 ${form.location}` +
+        `\n📅 ${appointmentDate}` +
+        `\n⏰ ${form.timeSlot}` +
+        `\n\nPlease arrive 5 mins early.` +
+        `\n— Dr. Teje's Clinic 🏥`;
+
+      const confirmationLink = 
+        `https://wa.me/${patientCleanedPhone}?text=${encodeURIComponent(confirmationMessage)}`;
+
+      const whatsappMessage = 
+        `Hello Dr. Teje, I would like to book an appointment.` +
+        `\n\n*Patient Name:* ${form.name}` +
+        `\n*Phone:* ${form.phone}` +
+        `\n*Location:* ${form.location}` +
+        `\n*Date:* ${appointmentDate}` +
+        `\n*Time Slot:* ${form.timeSlot}` +
+        `\n*Reason:* ${form.reason || 'Not specified'}` +
+        `\n\n---` +
+        `\n⚡ *Click here to instantly confirm this appointment via WhatsApp:*` +
+        `\n${confirmationLink}`;
+
+      const whatsappUrl = 
+        `https://wa.me/918999046916?text=${encodeURIComponent(whatsappMessage)}`;
+      
+      // 3. ONLY THEN open WhatsApp
+      window.open(whatsappUrl, '_blank');
+
+      // 4. Show success message
+      setSubmitSuccess(true);
+      toast.success("✅ Redirecting to WhatsApp! Dr. Teje will confirm your appointment shortly.", {
         position: "top-center",
         autoClose: 5000,
         hideProgressBar: false,
@@ -291,21 +433,13 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
         theme: "colored",
       });
 
-      setForm(initialForm); // Clear the form
-      onClose(); // Close the modal
+      setForm(initialForm);
+      onClose();
 
     } catch (error: any) {
-      console.error('Error booking appointment:', error.message);
-      toast.error(`❌ Failed to book appointment: ${error.message}`, {
-        position: "top-center",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-        progress: undefined,
-        theme: "colored",
-      });
+      console.error('Booking failed:', error);
+      setSubmitError(error.message || 'Booking failed. Please try again.');
+      toast.error(error.message || 'Booking failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -431,10 +565,18 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
 
             {/* Submit */}
             <div className="pt-2">
-              <button type="submit" disabled={isSubmitting} className="w-full bg-teal-500 hover:bg-teal-600 text-white font-sans font-semibold py-3.5 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                {isSubmitting ? 'Submitting...' : 'Submit Appointment Request'}
+              <button 
+                type="submit" 
+                disabled={isSubmitting}
+                className={`w-full text-white font-sans font-semibold py-3.5 rounded-lg shadow-md transition-all duration-200 
+                  ${isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-teal-500 hover:bg-teal-600 hover:shadow-lg'}`}
+              >
+                {isSubmitting ? 'Saving your booking...' : 
+                 submitSuccess ? '✅ Booking Saved! Opening WhatsApp...' : 
+                 'Submit Appointment Request'}
               </button>
-              <p className="text-center text-gray-400 text-xs mt-3 font-sans">Your appointment request will be reviewed.</p>
+              {submitError && <p className="text-red-500 text-sm mt-2 text-center">{submitError}</p>}
+              <p className="text-center text-gray-400 text-xs mt-3 font-sans">You will be redirected to WhatsApp to confirm your booking.</p>
             </div>
 
           </form>

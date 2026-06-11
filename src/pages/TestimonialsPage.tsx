@@ -12,7 +12,7 @@ interface VideoTestimonial {
   patientName: string;
   reviewSnippet: string;
   stars: number;
-  treatmentTag?: string; // Make treatmentTag optional
+  treatmentTag: string;
   thumbnail: string;
 }
 
@@ -21,27 +21,27 @@ export const videoTestimonials: VideoTestimonial[] = [
     id: '0j9Mta-Mr1I',
     title: 'Patient Testimonial 1',
     patientName: 'Mrs. S.K.',
-    reviewSnippet: 'Case of complicated abdominal sepsis with heart failure & diabetes.',
+    reviewSnippet: 'My diabetes is now well-controlled thanks to Dr. Teje\'s personalized plan.',
     stars: 5,
-    treatmentTag: 'Complicated Abdominal Sepsis',
+    treatmentTag: 'Diabetes',
     thumbnail: 'https://img.youtube.com/vi/0j9Mta-Mr1I/hqdefault.jpg',
   },
   {
     id: 'AnvRAoqAS2o',
     title: 'Patient Testimonial 2',
     patientName: 'Mr. R.P.',
-    reviewSnippet: 'Case of persistent vomitting diagnosed as ischemic heart disease post coronary angioplasty status.',
+    reviewSnippet: 'He patiently explained my thyroid condition and the treatment options.',
     stars: 5,
-    treatmentTag: 'Coronary Artery Disease with Diabetes',
+    treatmentTag: 'Thyroid',
     thumbnail: 'https://img.youtube.com/vi/AnvRAoqAS2o/hqdefault.jpg',
   },
   {
     id: '11Ex_R00VUg',
     title: 'Patient Testimonial 3',
     patientName: 'Ms. A.G.',
-    reviewSnippet: 'Case of persistent headache and fever diagnosed with Rare Anti-MOG syndrome.',
+    reviewSnippet: 'Recovered quickly from a persistent fever with his accurate diagnosis.',
     stars: 4,
-    treatmentTag: 'Rare Anti-MOG Syndrome',
+    treatmentTag: 'Fever & Infections',
     thumbnail: 'https://img.youtube.com/vi/11Ex_R00VUg/hqdefault.jpg',
   },
   {
@@ -57,19 +57,18 @@ export const videoTestimonials: VideoTestimonial[] = [
     id: 'yjB-UalZOMQ',
     title: 'Patient Testimonial 5',
     patientName: 'Mrs. P.M.',
-    reviewSnippet: 'Case of dengue shock syndrome with seizure and hepatitis.',
+    reviewSnippet: 'Grateful for the clear guidance on managing my cholesterol levels.',
     stars: 5,
-    title: 'Patient Testimonial 5', // Added title for the 5th video
-    // No treatmentTag for this video
+    treatmentTag: 'Cholesterol',
     thumbnail: 'https://img.youtube.com/vi/yjB-UalZOMQ/hqdefault.jpg',
   },
   {
     id: 'TgQqFTTgzrg',
     title: 'Patient Testimonial 6',
     patientName: 'Mr. K.L.',
-    reviewSnippet: 'Case of renal calculi presenting with generalized rashes and itching.',
+    reviewSnippet: 'His advice on preventive health has made a huge difference.',
     stars: 4,
-    treatmentTag: 'Renal Calculi with Generalized Rashes',
+    treatmentTag: 'Preventive Health',
     thumbnail: 'https://img.youtube.com/vi/TgQqFTTgzrg/hqdefault.jpg',
   },
 ];
@@ -93,12 +92,12 @@ const googleReviews = [
 ];
 
 const treatmentColors: Record<string, string> = {
-  'Complicated Abdominal Sepsis': 'bg-red-50 text-red-700 border-red-100',
-  'Coronary Artery Disease with Diabetes': 'bg-blue-50 text-blue-700 border-blue-100',
-  'Rare Anti-MOG Syndrome': 'bg-purple-50 text-purple-700 border-purple-100',
-  'Hypertension': 'bg-orange-50 text-orange-700 border-orange-100',
-  'Renal Calculi with Generalized Rashes': 'bg-green-50 text-green-700 border-green-100',
-  // Add other specific tags if needed, or a default
+  'Diabetes': 'bg-blue-50 text-blue-700 border-blue-100',
+  'Thyroid': 'bg-purple-50 text-purple-700 border-purple-100',
+  'Fever & Infections': 'bg-orange-50 text-orange-700 border-orange-100',
+  'Hypertension': 'bg-red-50 text-red-700 border-red-100',
+  'Cholesterol': 'bg-green-50 text-green-700 border-green-100',
+  'Preventive Health': 'bg-teal-50 text-teal-700 border-teal-100',
 };
 
 export default function TestimonialsPage({ onNavigate, onOpenModal }: TestimonialsPageProps) {
@@ -159,11 +158,9 @@ export default function TestimonialsPage({ onNavigate, onOpenModal }: Testimonia
                     "{video.reviewSnippet}"
                   </p>
                   <div className="font-sans text-navy-800 font-semibold text-sm">{video.patientName}</div>
-                  {video.treatmentTag && (
-                    <span className={`badge border text-xs mt-3 ${treatmentColors[video.treatmentTag] || 'bg-gray-50 text-gray-700 border-gray-100'}`}>
-                      {video.treatmentTag}
-                    </span>
-                  )}
+                  <span className={`badge border text-xs mt-3 ${treatmentColors[video.treatmentTag]}`}>
+                    {video.treatmentTag}
+                  </span>
                 </div>
               </div>
             ))}
