@@ -273,7 +273,7 @@ export default function HomePage({ onNavigate, onOpenModal }: HomePageProps) {
           </div>
           <div className="text-center">
             <a
-              href="https://share.google/yo4EwenXmEjtt9dx7"
+              href="https://www.google.com/maps/place/Dr+Teje+physician+%26+Diabetology+clinic/@18.6195766,73.7690799,17z/data=!3m1!5s0x3bc2b9a024eed5a9:0x34239d8d5e929a5b!4m8!3m7!1s0x3bc2b9310ae7b9ad:0x32a4c30150021345!8m2!3d18.6195715!4d73.7716548!9m1!1b1!16s%2Fg%2F11jsygqmnx?entry=ttu&g_ep=EgoyMDI2MDYwMy4xIKXMDSoASAFQAw%3D%3D"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full max-w-md mx-auto bg-teal-500 text-white rounded-lg py-4 px-6 font-sans font-semibold text-base flex items-center justify-center gap-2 transition-colors duration-200 hover:bg-teal-600"
