@@ -118,11 +118,11 @@ export default function AdminPage() {
   const fetchAppointments = async () => {
     setLoadingAppointments(true);
     const today = getTodayLocal();
-    const { data, error } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('appointment_date', today)
-      .order('time_slot', { ascending: true });
+   const { data, error } = await supabase
+  .from('appointments')
+  .select('*')
+  .order('appointment_date', { ascending: true })
+  .order('time_slot', { ascending: true });
 
     if (error) {
       console.error('Error fetching appointments:', error);

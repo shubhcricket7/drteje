@@ -351,12 +351,14 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
           phone: form.phone,
           location: form.location,
           appointment_date: form.date,
-          time_slot: form.timeSlot,
+          appointment_time: form.timeSlot,
           reason: form.reason || 'Not specified',
           status: 'pending'
         });
 
       if (appointmentError) {
+				console.log(appointmentError);
+alert(JSON.stringify(appointmentError));
         console.error('Appointment save error:', appointmentError);
         setSubmitError('Could not save appointment. Please try again.');
         toast.error('Could not save appointment. Please try again.');

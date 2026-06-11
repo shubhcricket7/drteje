@@ -18,7 +18,7 @@ import AdminPage from './pages/AdminPage'; // New import for AdminPage
 type Page = 'home' | 'about' | 'expertise' | 'services' | 'testimonials' | 'appointments' | 'blog' | 'contact' | `blog-post-${string}` | 'admin';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [currentPage, setCurrentPage] = useState<Page>('admin');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const navigate = (page: string, slug?: string) => {
