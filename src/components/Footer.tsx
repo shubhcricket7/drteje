@@ -131,6 +131,12 @@ export default function Footer({ onNavigate }: FooterProps) {
             <p className="font-sans text-gray-600 text-xs">
               This website is for informational purposes only. Please consult the doctor for medical advice.
             </p>
+					<button
+  onClick={() => onNavigate("admin")}
+  className="font-sans text-xs text-gray-500 hover:text-teal-500 transition-colors duration-200"
+>
+  Staff Login
+</button>
           </div>
         </div>
       </footer>
