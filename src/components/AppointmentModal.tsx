@@ -247,11 +247,8 @@ const locationKey = form.location.toLowerCase().includes("thergaon")
   ? "thergaon"
   : "manipal";
 
-		const filteredSlots = allSlots.filter(slot => {
+		let filteredSlots = allSlots.filter(slot => {
   const slotKey = `${form.date}-${locationKey}-${slot}`;
-
-  console.log("Checking:", slotKey);
-  console.log("Blocked:", blockedSlots);
 
   return !blockedSlots.includes(slotKey);
 });
@@ -262,10 +259,7 @@ const locationKey = form.location.toLowerCase().includes("thergaon")
   b.date === form.date &&
   (b.location === 'All Locations' || b.location === form.location)
 );
-console.log("Blocked Slots:", blockedSlots);
-console.log("Date:", form.date);
-console.log("Location:", form.location);
-    const finalSlots = filteredSlots.map(slot => {
+    let finalSlots = filteredSlots.map(slot => {
       let isCustomBlocked = false;
       for (const block of customBlockedForDateLocation) {
         const slotTime = new Date(`2000/01/01 ${slot}`);
@@ -415,7 +409,7 @@ alert(JSON.stringify(appointmentError));
         setSubmitError('Could not save appointment. Please try again.');
         toast.error('Could not save appointment. Please try again.');
         setIsSubmitting(false);
-        return; // STOP here — do not open WhatsApp if save failed
+        return; // STOP here if save failed
       }
 
       // 2. Block the slot in Supabase
@@ -439,45 +433,12 @@ alert(JSON.stringify(appointmentError));
         setSubmitError('Could not block slot. Please try again.');
         toast.error('Could not block slot. Please try again.');
         setIsSubmitting(false);
-        return; // STOP here — do not open WhatsApp if block failed
+        return; // STOP here if block failed
       }
-
-      const appointmentDate = getDisplayDate();
-      const patientCleanedPhone = cleanPhone(form.phone);
-
-      const confirmationMessage = 
-        `Hello ${form.name} 👋` +
-        `\n\nYour appointment with *Dr. Prathamesh Teje* is confirmed! ✅` +
-        `\n\n📍 ${form.location}` +
-        `\n📅 ${appointmentDate}` +
-        `\n⏰ ${form.timeSlot}` +
-        `\n\nPlease arrive 5 mins early.` +
-        `\n— Dr. Teje's Clinic 🏥`;
-
-      const confirmationLink = 
-        `https://wa.me/${patientCleanedPhone}?text=${encodeURIComponent(confirmationMessage)}`;
-
-      const whatsappMessage = 
-        `Hello Dr. Teje, I would like to book an appointment.` +
-        `\n\n*Patient Name:* ${form.name}` +
-        `\n*Phone:* ${form.phone}` +
-        `\n*Location:* ${form.location}` +
-        `\n*Date:* ${appointmentDate}` +
-        `\n*Time Slot:* ${form.timeSlot}` +
-        `\n*Reason:* ${form.reason || 'Not specified'}` +
-        `\n\n---` +
-        `\n⚡ *Click here to instantly confirm this appointment via WhatsApp:*` +
-        `\n${confirmationLink}`;
-
-      const whatsappUrl = 
-        `https://wa.me/918999046916?text=${encodeURIComponent(whatsappMessage)}`;
       
-      // 3. ONLY THEN open WhatsApp
-      window.open(whatsappUrl, '_blank');
-
-      // 4. Show success message
+      // 3. Show success message (no redirect to patient's WhatsApp)
       setSubmitSuccess(true);
-      toast.success("✅ Redirecting to WhatsApp! Dr. Teje will confirm your appointment shortly.", {
+      toast.success("✅ Appointment request submitted successfully. Dr. Teje's team will review your request and confirm it shortly via WhatsApp.", {
         position: "top-center",
         autoClose: 5000,
         hideProgressBar: false,
@@ -487,6 +448,22 @@ alert(JSON.stringify(appointmentError));
         progress: undefined,
         theme: "colored",
       });
+
+      // 4. Send booking request to Dr. Teje's WhatsApp
+      const appointmentDate = getDisplayDate();
+      const whatsappMessageToDr = 
+        `Hello Dr. Teje, I would like to book an appointment.` +
+        `\n\n*Patient Name:* ${form.name}` +
+        `\n*Phone:* ${form.phone}` +
+        `\n*Location:* ${form.location}` +
+        `\n*Date:* ${appointmentDate}` +
+        `\n*Time Slot:* ${form.timeSlot}` +
+        `\n*Reason:* ${form.reason || 'Not specified'}`;
+
+      const whatsappUrlToDr = 
+        `https://wa.me/918999046916?text=${encodeURIComponent(whatsappMessageToDr)}`;
+      
+      window.open(whatsappUrlToDr, '_blank');
 
       setForm(initialForm);
       onClose();
@@ -548,7 +525,8 @@ alert(JSON.stringify(appointmentError));
             <div>
               <label className="block font-sans text-xs font-semibold text-navy-700 uppercase tracking-wide mb-1.5">Select Location *</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><MapPin size={16} className="text-gray-400" /></div>
+                <div className="absolute inset-y-0 left-0 pl-3 flex items```typescript
+items-center pointer-events-none"><MapPin size={16} className="text-gray-400" /></div>
                 <select name="location" value={form.location} onChange={handleChange} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none ${errors.location ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}>
                   <option value="">Select a clinic location</option>
                   {availableLocations.map(loc => (
@@ -631,7 +609,7 @@ alert(JSON.stringify(appointmentError));
                  'Submit Appointment Request'}
               </button>
               {submitError && <p className="text-red-500 text-sm mt-2 text-center">{submitError}</p>}
-              <p className="text-center text-gray-400 text-xs mt-3 font-sans">You will be redirected to WhatsApp to confirm your booking.</p>
+              <p className="text-center text-gray-400 text-xs mt-3 font-sans">You will be redirected to WhatsApp to notify Dr. Teje's team.</p>
             </div>
 
           </form>

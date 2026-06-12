@@ -189,21 +189,31 @@ export default function AdminPage() {
     } else {
       toast.success(`Appointment ${status} successfully!`);
       
+      const patientCleanedPhone = appointment.phone.replace(/\D/g, ''); // Basic cleaning
+      const appointmentTime = appointment.time_slot || appointment.appointment_time;
+      const formattedDate = fmt(appointment.appointment_date);
+
+      let whatsappMessage = '';
       if (status === 'confirmed') {
-        const patientCleanedPhone = appointment.phone.replace(/\D/g, ''); // Basic cleaning
-        const confirmationMessage = 
+        whatsappMessage = 
           `Hello ${appointment.patient_name} 👋` +
-          `\n\nYour appointment with *Dr. Prathamesh Teje* is confirmed! ✅` +
-          `\n\n📍 ${appointment.location}` +
-          `\n📅 ${fmt(appointment.appointment_date)}` + // Using fmt helper
-          `\n⏰ ${appointment.time_slot}` +
-          `\n\nPlease arrive 5 mins early.` +
-          `\n— Dr. Teje's Clinic 🏥`;
-        
-        const whatsappUrl = `https://wa.me/${patientCleanedPhone}?text=${encodeURIComponent(confirmationMessage)}`;
-        window.open(whatsappUrl, '_blank');
+          `\n\nYour appointment with *Dr. Prathamesh Teje* has been CONFIRMED ✅` +
+          `\n\n📍 Location: ${appointment.location}` +
+          `\n📅 Date: ${formattedDate}` +
+          `\n⏰ Time: ${appointmentTime}` +
+          `\n\nPlease arrive 5–10 minutes early.` +
+          `\n\nThank you for choosing Dr. Teje's Clinic. 🏥`;
       } else if (status === 'cancelled') {
-        // Also delete the corresponding blocked slot
+        whatsappMessage = 
+          `Hello ${appointment.patient_name} 👋` +
+          `\n\nYour appointment with *Dr. Prathamesh Teje* has been CANCELLED ❌` +
+          `\n\n📍 Location: ${appointment.location}` +
+          `\n📅 Date: ${formattedDate}` +
+          `\n⏰ Time: ${appointmentTime}` +
+          `\n\nIf you wish to reschedule, please book another appointment or contact the clinic.` +
+          `\n\nThank you.`;
+
+        // Also delete the corresponding blocked slot if cancelled
         const { error: deleteBlockError } = await supabase
           .from('blocked_slots')
           .delete()
@@ -216,6 +226,10 @@ export default function AdminPage() {
           toast.error('Failed to delete associated blocked slot.');
         }
       }
+      
+      const whatsappUrl = `https://wa.me/${patientCleanedPhone}?text=${encodeURIComponent(whatsappMessage)}`;
+      window.open(whatsappUrl, '_blank');
+      
       fetchAppointments(); // Refresh the list
     }
   };
@@ -389,8 +403,8 @@ export default function AdminPage() {
     }
 
     const { error } = await supabase
-  .from("blocked_slots")
-  .insert([payload]);
+      .from('blocked_slots')
+      .insert(payload);
 
     if (error) {
       console.error('Error blocking slot:', error);
@@ -613,7 +627,7 @@ const exportTodayAppointments = () => {
                     <div key={appt.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-lg font-semibold text-gray-900 flex items-center">
-                          <Clock size={18} className="mr-2 text-teal-600" /> {appt.time_slot}
+                          <Calendar size={18} className="mr-2 text-teal-600" /> {fmt(appt.appointment_date)}
                         </p>
                         <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
                           appt.status === 'confirmed' ? 'bg-green-100 text-green-800' :
@@ -626,10 +640,9 @@ const exportTodayAppointments = () => {
                       <p className="text-gray-700 flex items-center mb-1">
                         <MapPin size={16} className="mr-2 text-gray-500" /> {appt.location}
                       </p>
-											<p className="text-gray-700 flex items-center mb-1">
-  <Clock size={16} className="mr-2 text-gray-500" />
-  {appt.appointment_time || appt.time_slot}
-</p>
+                      <p className="text-gray-700 flex items-center mb-1">
+                        <Clock size={16} className="mr-2 text-gray-500" /> {appt.time_slot || appt.appointment_time}
+                      </p>
                       <p className="text-gray-700 flex items-center mb-1">
                         <User size={16} className="mr-2 text-gray-500" /> {appt.patient_name}
                       </p>
@@ -696,7 +709,8 @@ const exportTodayAppointments = () => {
                       <option key={d.value} value={d.value}>{d.label}</option>
                     ))}
                   </select>
-                  {blockErrors.blocked_date && <p className="text-red-500 text-xs mt-1">{blockErrors.blocked_date}</p>}
+                  {blockErrors.blocked_date && <p className="text-red-500 text-xs mt```typescript
+1">{blockErrors.blocked_date}</p>}
                 </div>
 
                 <div>
@@ -729,8 +743,7 @@ const exportTodayAppointments = () => {
                       </option>
                       {availableBlockTimeSlots.map((slotInfo, index) => (
                         slotInfo.slot.includes('closed') ? (
-                          <option key={index} value={slotInfo.slot} disabled className="text-gray-50```typescript
-0">
+                          <option key={index} value={slotInfo.slot} disabled className="text-gray-500">
                             {slotInfo.slot}
                           </option>
                         ) : (
