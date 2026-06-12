@@ -430,7 +430,38 @@ export default function AdminPage() {
   const todayAppointments = appointments.filter(appt => appt.appointment_date === getTodayLocal());
   const thergaonAppointments = todayAppointments.filter(appt => appt.location === LOCATIONS.THERGAON);
   const manipalAppointments = todayAppointments.filter(appt => appt.location === LOCATIONS.MANIPAL);
+const exportTodayAppointments = () => {
+  const today = new Date().toISOString().split("T")[0];
 
+  const rows = appointments
+    .filter(a => a.appointment_date === today)
+    .map(a => ({
+      Time: a.appointment_time || a.time_slot,
+      Name: a.patient_name,
+      Phone: a.phone,
+      Location: a.location,
+      Reason: a.reason || "",
+      Status: a.status,
+    }));
+
+  if (!rows.length) {
+    alert("No appointments for today");
+    return;
+  }
+
+  const csv = [
+    Object.keys(rows[0]).join(","),
+    ...rows.map(r => Object.values(r).join(","))
+  ].join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `appointments-${today}.csv`;
+  a.click();
+};
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
@@ -538,7 +569,12 @@ export default function AdminPage() {
         <div className="p-6">
           {activeTab === 'appointments' && (
             <div>
-              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Today's Appointments</h2>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Today's Appointments</h2> <button
+  onClick={exportTodayAppointments}
+  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+>
+  Export CSV
+</button>
               <div className="mb-6 p-4 bg-teal-50 border-l-4 border-teal-500 text-teal-800">
                 <p className="font-semibold text-lg">📅 Today: {todayAppointments.length} appointments</p>
                 <p className="text-sm">📍 Thergaon: {thergaonAppointments.length} | Manipal: {manipalAppointments.length}</p>
