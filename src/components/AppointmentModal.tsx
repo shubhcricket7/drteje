@@ -123,7 +123,20 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
         } else if (block.block_type === 'custom_hours' && block.from_time && block.to_time) {
           customHours.push({ date: block.blocked_date, location: block.location, from: block.from_time, to: block.to_time });
         }
-      });
+});
+			const { data: appointments } = await supabase
+  .from('appointments')
+  .select('appointment_date, location, appointment_time');
+
+appointments?.forEach(appt => {
+  const locationKey = appt.location.toLowerCase().includes('thergaon')
+    ? 'thergaon'
+    : 'manipal';
+
+  slots.push(
+    `${appt.appointment_date}-${locationKey}-${appt.appointment_time}`
+  );
+});
       setBlockedSlots(slots);
       setBlockedFullDays(fullDays);
       setBlockedCustomHours(customHours);
@@ -367,9 +380,10 @@ alert(JSON.stringify(appointmentError));
       }
 
       // 2. Block the slot in Supabase
-      const locationKey = form.location
-        .toLowerCase().includes('thergaon') 
-        ? 'thergaon' : 'manipal';
+    const locationKey =
+  form.location.toLowerCase().includes('thergaon')
+    ? 'Thergaon'
+    : 'Manipal Hospital';
 
       const { error: blockError } = await supabase
         .from('blocked_slots')
