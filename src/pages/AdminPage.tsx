@@ -427,7 +427,22 @@ export default function AdminPage() {
     }
   };
 
-  const todayAppointments = appointments.filter(appt => appt.appointment_date === getTodayLocal());
+const now = new Date();
+
+// 9:30 PM ke baad kal ki date use karo
+const shouldShowTomorrow =
+  now.getHours() > 21 ||
+  (now.getHours() === 21 && now.getMinutes() >= 30);
+
+const displayDate = shouldShowTomorrow
+  ? new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  : now;
+
+const targetDate = displayDate.toISOString().split("T")[0];
+
+const todayAppointments = appointments.filter(
+  app => app.appointment_date === targetDate
+);
   const thergaonAppointments = todayAppointments.filter(appt => appt.location === LOCATIONS.THERGAON);
   const manipalAppointments = todayAppointments.filter(appt => appt.location === LOCATIONS.MANIPAL);
 const exportTodayAppointments = () => {
@@ -569,23 +584,32 @@ const exportTodayAppointments = () => {
         <div className="p-6">
           {activeTab === 'appointments' && (
             <div>
-              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Today's Appointments</h2> <button
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+  {shouldShowTomorrow ? "Tomorrow's Appointments" : "Today's Appointments"}
+</h2>
+
+<button
   onClick={exportTodayAppointments}
   className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
 >
   Export CSV
 </button>
               <div className="mb-6 p-4 bg-teal-50 border-l-4 border-teal-500 text-teal-800">
-                <p className="font-semibold text-lg">📅 Today: {todayAppointments.length} appointments</p>
-                <p className="text-sm">📍 Thergaon: {thergaonAppointments.length} | Manipal: {manipalAppointments.length}</p>
-              </div>
+  <p className="font-semibold text-lg">
+    📅 {shouldShowTomorrow ? "Tomorrow" : "Today"}: {todayAppointments.length} appointments
+  </p>
+
+  <p className="text-sm">
+    📍 Thergaon: {thergaonAppointments.length} | Manipal: {manipalAppointments.length}
+  </p>
+</div>
               {loadingAppointments ? (
                 <div className="text-center py-8 text-gray-500">Loading appointments...</div>
               ) : appointments.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">No appointments found for today.</div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {appointments.map((appt) => (
+                  {todayAppointments.map((appt) => (
                     <div key={appt.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-lg font-semibold text-gray-900 flex items-center">

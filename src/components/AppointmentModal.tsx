@@ -279,7 +279,18 @@ console.log("Location:", form.location);
       }
       return { slot, isBooked: isCustomBlocked };
     });
+const now = new Date();
 
+if (form.date === new Date().toISOString().split("T")[0]) {
+  finalSlots = finalSlots.filter(({ slot }) => {
+    const slotTime = new Date(`2000-01-01 ${slot}`);
+    const currentTime = new Date();
+
+    currentTime.setFullYear(2000, 0, 1);
+
+    return slotTime > currentTime;
+  });
+}
     return finalSlots;
 
   }, [form.date, form.location, blockedSlots, blockedCustomHours]);
