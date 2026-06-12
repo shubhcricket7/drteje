@@ -102,12 +102,23 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
   // Fetch all blocked slots (full days, custom hours, individual slots) from Supabase
   useEffect(() => {
     const fetchAllBlockedSlots = async () => {
-      const { data, error } = await supabase
+      // Fetch blocked_slots from the database
+      const { data: dbBlockedSlots, error: dbBlockedSlotsError } = await supabase
         .from('blocked_slots')
         .select('blocked_date, location, time_slot, block_type, from_time, to_time');
 
-      if (error) {
-        console.error('Error fetching blocked slots:', error);
+      if (dbBlockedSlotsError) {
+        console.error('Error fetching blocked slots:', dbBlockedSlotsError);
+        return;
+      }
+
+      // Fetch appointments from the database
+      const { data: appointments, error: appointmentsError } = await supabase
+        .from('appointments')
+        .select('appointment_date, location, appointment_time, status');
+
+      if (appointmentsError) {
+        console.error('Error fetching appointments:', appointmentsError);
         return;
       }
 
@@ -115,28 +126,41 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
       const fullDays: { date: string; location: string }[] = [];
       const customHours: { date: string; location: string; from: string; to: string }[] = [];
 
-      data?.forEach(block => {
+      // Process blocked_slots from the database
+      dbBlockedSlots?.forEach(block => {
+        // Only consider 'slot' type blocks if they are not associated with a cancelled appointment
         if (block.block_type === 'slot' && block.time_slot) {
-          slots.push(`${block.blocked_date}-${block.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal'}-${block.time_slot}`);
+          const locationKey = block.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal';
+          const isCancelledAppointmentBlock = appointments?.some(appt => 
+            appt.appointment_date === block.blocked_date &&
+            (appt.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal') === locationKey &&
+            appt.appointment_time === block.time_slot &&
+            appt.status === 'cancelled'
+          );
+
+          if (!isCancelledAppointmentBlock) {
+            slots.push(`${block.blocked_date}-${locationKey}-${block.time_slot}`);
+          }
         } else if (block.block_type === 'full_day') {
           fullDays.push({ date: block.blocked_date, location: block.location });
         } else if (block.block_type === 'custom_hours' && block.from_time && block.to_time) {
           customHours.push({ date: block.blocked_date, location: block.location, from: block.from_time, to: block.to_time });
         }
-});
-			const { data: appointments } = await supabase
-  .from('appointments')
-  .select('appointment_date, location, appointment_time');
+      });
 
-appointments?.forEach(appt => {
-  const locationKey = appt.location.toLowerCase().includes('thergaon')
-    ? 'thergaon'
-    : 'manipal';
+      // Add 'pending' and 'confirmed' appointments to blocked slots
+      appointments?.forEach(appt => {
+        if (appt.status === 'pending' || appt.status === 'confirmed') {
+          const locationKey = appt.location.toLowerCase().includes('thergaon')
+            ? 'thergaon'
+            : 'manipal';
 
-  slots.push(
-    `${appt.appointment_date}-${locationKey}-${appt.appointment_time}`
-  );
-});
+          slots.push(
+            `${appt.appointment_date}-${locationKey}-${appt.appointment_time}`
+          );
+        }
+      });
+
       setBlockedSlots(slots);
       setBlockedFullDays(fullDays);
       setBlockedCustomHours(customHours);
@@ -525,8 +549,7 @@ alert(JSON.stringify(appointmentError));
             <div>
               <label className="block font-sans text-xs font-semibold text-navy-700 uppercase tracking-wide mb-1.5">Select Location *</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items```typescript
-items-center pointer-events-none"><MapPin size={16} className="text-gray-400" /></div>
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><MapPin size={16} className="text-gray-400" /></div>
                 <select name="location" value={form.location} onChange={handleChange} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none ${errors.location ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}>
                   <option value="">Select a clinic location</option>
                   {availableLocations.map(loc => (
