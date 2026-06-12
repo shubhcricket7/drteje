@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { CheckCircle, XCircle, Clock, Calendar, MapPin, User, Phone, FileText, Lock, LogOut } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -66,6 +66,22 @@ const getTodayLocal = () => {
   return `${y}-${m}-${d}`;
 };
 
+// Helper to generate time slots (same as in AppointmentModal)
+const generateTimeSlots = (startHour: number, startMinute: number, endHour: number, endMinute: number, interval: number = 15) => {
+  const slots: string[] = [];
+  let current = new Date();
+  current.setHours(startHour, startMinute, 0, 0);
+  let end = new Date();
+  end.setHours(endHour, endMinute, 0, 0);
+
+  while (current <= end) {
+    const formatTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    slots.push(formatTime(current));
+    current.setMinutes(current.getMinutes() + interval);
+  }
+  return slots;
+};
+
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(
     sessionStorage.getItem('drTeje_admin') === 'true'
@@ -82,7 +98,7 @@ export default function AdminPage() {
   // Block Slots Tab State
   const [blockForm, setBlockForm] = useState({
     location: '',
-    blocked_date: '',
+    blocked_date: getTodayLocal(), // Default to today
     block_type: 'slot',
     time_slot: '',
     from_time: '',
@@ -119,11 +135,11 @@ export default function AdminPage() {
     setLoadingAppointments(true);
     const today = getTodayLocal();
 
-const { data, error } = await supabase
-  .from('appointments')
-  .select('*')
-  .eq('appointment_date', today)
-  .order('appointment_time', { ascending: true });
+    const { data, error } = await supabase
+      .from('appointments')
+      .select('*')
+      .eq('appointment_date', today)
+      .order('appointment_time', { ascending: true });
 
     if (error) {
       console.error('Error fetching appointments:', error);
@@ -193,7 +209,7 @@ const { data, error } = await supabase
           .delete()
           .eq('blocked_date', appointment.appointment_date)
           .eq('time_slot', appointment.time_slot)
-          .eq('location', appointment.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal');
+          .eq('location', appointment.location.toLowerCase().includes('thergaon') ? 'Thergaon Clinic' : 'Manipal Hospital');
         
         if (deleteBlockError) {
           console.error('Error deleting blocked slot:', deleteBlockError);
@@ -204,9 +220,132 @@ const { data, error } = await supabase
     }
   };
 
+  // --- DYNAMIC SCHEDULING LOGIC FOR ADMIN BLOCK SLOTS ---
+
+  // 1. Generate available dates (Next 30 days including today) based on selected location and full_day blocks
+  const availableBlockDates = useMemo(() => {
+    const dates = [];
+    const today = new Date();
+    const localToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    localToday.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(localToday);
+      d.setDate(localToday.getDate() + i);
+      const day = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      const dateString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      
+      let isValid = false;
+
+      if (!blockForm.location || blockForm.location === LOCATIONS.ALL) {
+        // If no location selected or 'All Locations', show all days except Sunday (common closed day)
+        if (day !== 0) isValid = true;
+      } else if (blockForm.location === LOCATIONS.THERGAON) {
+        // Thergaon: Closed on Thursday (4) and Sunday (0)
+        if (day !== 0 && day !== 4) isValid = true;
+      } else if (blockForm.location === LOCATIONS.MANIPAL) {
+        // Manipal: Closed on Monday (1)
+        if (day !== 1) isValid = true;
+      }
+      
+      if (isValid) {
+        dates.push({
+          value: dateString,
+          label: new Date(d.getFullYear(), d.getMonth(), d.getDate()).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+          day,
+        });
+      }
+    }
+    return dates;
+  }, [blockForm.location]);
+
+  // 2. Generate time slots based on selected date AND location for blocking
+  const availableBlockTimeSlots = useMemo(() => {
+    if (!blockForm.blocked_date || !blockForm.location || blockForm.location === LOCATIONS.ALL) return [];
+
+    const p = blockForm.blocked_date.split('-');
+    const day = new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2])).getDay();
+
+    let allSlots: string[] = [];
+    let clinicClosedMessage: string | null = null;
+
+    if (blockForm.location === LOCATIONS.THERGAON) {
+      if (day === 0 || day === 4) { // Sunday or Thursday
+        clinicClosedMessage = 'Thergaon Clinic is closed on this day.';
+      } else {
+        allSlots = generateTimeSlots(18, 0, 20, 30); // 6:00 PM to 8:30 PM (last slot)
+      }
+    } else if (blockForm.location === LOCATIONS.MANIPAL) {
+      if (day === 1) { // Monday
+        clinicClosedMessage = 'Manipal Hospital is closed on this day.';
+      } else if (day === 4) { // Thursday
+        allSlots = generateTimeSlots(14, 0, 19, 30); // 2:00 PM to 7:30 PM (last slot)
+      } else if (day === 0) { // Sunday
+        allSlots = generateTimeSlots(10, 0, 11, 45); // 10:00 AM to 11:45 AM (last slot)
+      } else { // Tuesday, Wednesday, Friday, Saturday
+        allSlots = generateTimeSlots(9, 0, 14, 45); // 9:00 AM to 2:45 PM (last slot)
+      }
+    }
+
+    if (clinicClosedMessage) {
+      return [{ slot: clinicClosedMessage, isBooked: true }];
+    }
+
+    // Filter out already blocked slots from the list
+    const existingBlockedSlotsForDateLocation = blockedSlots.filter(b => 
+      b.blocked_date === blockForm.blocked_date && b.location === blockForm.location && b.block_type === 'slot'
+    ).map(b => b.time_slot);
+
+    const filteredSlots = allSlots.filter(slot => !existingBlockedSlotsForDateLocation.includes(slot));
+
+    return filteredSlots.map(slot => ({ slot, isBooked: false }));
+
+  }, [blockForm.blocked_date, blockForm.location, blockedSlots]);
+
+
   const handleBlockChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setBlockForm(prev => ({ ...prev, [name]: value }));
+    
+    setBlockForm(prev => {
+      const next = { ...prev, [name]: value };
+
+      // Smart Reset Logic for block form
+      if (name === 'location') {
+        if (next.blocked_date) {
+          const dp = next.blocked_date.split('-');
+          const day = new Date(parseInt(dp[0]), parseInt(dp[1])-1, parseInt(dp[2])).getDay();
+          // Check if the selected date is a holiday for the new location
+          if (value === LOCATIONS.THERGAON && (day === 0 || day === 4)) { // Sunday or Thursday
+            next.blocked_date = ''; // Reset date if invalid for Thergaon
+          } else if (value === LOCATIONS.MANIPAL && day === 1) { // Monday
+            next.blocked_date = ''; // Reset date if invalid for Manipal
+          }
+        }
+        next.time_slot = ''; // Always reset time slot
+      }
+
+      if (name === 'blocked_date') {
+        const vp = value.split('-');
+        const day = new Date(parseInt(vp[0]), parseInt(vp[1])-1, parseInt(vp[2])).getDay();
+        // Check if the selected location is closed on the new date
+        if (next.location === LOCATIONS.THERGAON && (day === 0 || day === 4)) { // Sunday or Thursday
+          next.location = ''; // Reset location if Thergaon is closed
+        } else if (next.location === LOCATIONS.MANIPAL && day === 1) { // Monday
+          next.location = ''; // Reset location if Manipal is closed
+        }
+        next.time_slot = ''; // Always reset time slot
+      }
+
+      if (name === 'block_type') {
+        // Reset time-related fields when block type changes
+        next.time_slot = '';
+        next.from_time = '';
+        next.to_time = '';
+      }
+
+      return next;
+    });
+
     if (blockErrors[name]) {
       setBlockErrors(prev => ({ ...prev, [name]: '' }));
     }
@@ -222,6 +361,7 @@ const { data, error } = await supabase
     }
     if (blockForm.block_type === 'custom_hours') {
       if (!blockForm.from_time) newErrors.from_time = 'From time is required';
+      if (!blockForm.to_time) newErrors.to_time = 'To time is required';
       if (blockForm.from_time && blockForm.to_time && blockForm.from_time >= blockForm.to_time) {
         newErrors.to_time = 'To time must be after From time';
       }
@@ -258,10 +398,10 @@ const { data, error } = await supabase
     } else {
       toast.success('Slot blocked successfully!');
       setBlockForm({
-        location: '',
-        blocked_date: '',
+        location: blockForm.location, // Keep location selected
+        blocked_date: blockForm.blocked_date, // Keep date selected
         block_type: 'slot',
-        time_slot: '',
+        time_slot: '', // Reset time slot
         from_time: '',
         to_time: '',
         reason: '',
@@ -426,6 +566,10 @@ const { data, error } = await supabase
                       <p className="text-gray-700 flex items-center mb-1">
                         <MapPin size={16} className="mr-2 text-gray-500" /> {appt.location}
                       </p>
+											<p className="text-gray-700 flex items-center mb-1">
+  <Clock size={16} className="mr-2 text-gray-500" />
+  {appt.appointment_time || appt.time_slot}
+</p>
                       <p className="text-gray-700 flex items-center mb-1">
                         <User size={16} className="mr-2 text-gray-500" /> {appt.patient_name}
                       </p>
@@ -481,13 +625,17 @@ const { data, error } = await supabase
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
-                  <input
-                    type="date"
+                  <select
                     name="blocked_date"
                     value={blockForm.blocked_date}
                     onChange={handleBlockChange}
                     className={`w-full py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors ${blockErrors.blocked_date ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}
-                  />
+                  >
+                    <option value="">Select a date</option>
+                    {availableBlockDates.map(d => (
+                      <option key={d.value} value={d.value}>{d.label}</option>
+                    ))}
+                  </select>
                   {blockErrors.blocked_date && <p className="text-red-500 text-xs mt-1">{blockErrors.blocked_date}</p>}
                 </div>
 
@@ -508,14 +656,35 @@ const { data, error } = await supabase
                 {blockForm.block_type === 'slot' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Time Slot *</label>
-                    <input
-                      type="text"
+                    <select
                       name="time_slot"
                       value={blockForm.time_slot}
                       onChange={handleBlockChange}
-                      placeholder="e.g., 6:00 PM"
-                      className={`w-full py-2.5 border rounded-lg font-sans text-sm focus:outline-none focus:ring-2 transition-colors ${blockErrors.time_slot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}
-                    />
+                      disabled={!blockForm.blocked_date || !blockForm.location || availableBlockTimeSlots[0]?.slot?.includes('closed')}
+                      className={`w-full py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${blockErrors.time_slot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}
+                    >
+                      <option value="">
+                        {(!blockForm.blocked_date || !blockForm.location || blockForm.location === LOCATIONS.ALL) ? 'Select date & location first' :
+                         (availableBlockTimeSlots[0]?.slot?.includes('closed') ? availableBlockTimeSlots[0].slot : 'Select a slot')}
+                      </option>
+                      {availableBlockTimeSlots.map((slotInfo, index) => (
+                        slotInfo.slot.includes('closed') ? (
+                          <option key={index} value={slotInfo.slot} disabled className="text-gray-50```typescript
+0">
+                            {slotInfo.slot}
+                          </option>
+                        ) : (
+                          <option 
+                            key={slotInfo.slot} 
+                            value={slotInfo.slot} 
+                            disabled={slotInfo.isBooked} 
+                            className={slotInfo.isBooked ? 'text-gray-500 italic' : ''}
+                          >
+                            {slotInfo.slot} {slotInfo.isBooked && '— Booked'}
+                          </option>
+                        )
+                      ))}
+                    </select>
                     {blockErrors.time_slot && <p className="text-red-500 text-xs mt-1">{blockErrors.time_slot}</p>}
                   </div>
                 )}

@@ -159,7 +159,7 @@ appointments?.forEach(appt => {
     for (let i = 0; i < 30; i++) {
       const d = new Date(localToday);
       d.setDate(localToday.getDate() + i);
-      const day = d.getDay();
+      const day = d.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
       const dateString = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       
       let isValid = false;
@@ -172,10 +172,13 @@ appointments?.forEach(appt => {
 
       if (!isBlockedFullDay) {
         if (!form.location) {
+          // If no location selected, show all days except Sunday (common closed day)
           if (day !== 0) isValid = true;
         } else if (form.location === LOCATIONS.THERGAON) {
+          // Thergaon: Closed on Thursday (4) and Sunday (0)
           if (day !== 0 && day !== 4) isValid = true;
         } else if (form.location === LOCATIONS.MANIPAL) {
+          // Manipal: Closed on Monday (1)
           if (day !== 1) isValid = true;
         }
       }
@@ -197,10 +200,16 @@ appointments?.forEach(appt => {
     const parts = form.date.split('-');
     const day = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2])).getDay();
     
-    if (day === 0) return [LOCATIONS.MANIPAL];
-    if (day === 1) return [LOCATIONS.THERGAON];
-    if (day === 4) return [LOCATIONS.MANIPAL];
-    return [LOCATIONS.THERGAON, LOCATIONS.MANIPAL];
+    const locations = [];
+    // Thergaon: Closed on Thursday (4) and Sunday (0)
+    if (day !== 0 && day !== 4) {
+      locations.push(LOCATIONS.THERGAON);
+    }
+    // Manipal: Closed on Monday (1)
+    if (day !== 1) {
+      locations.push(LOCATIONS.MANIPAL);
+    }
+    return locations;
   }, [form.date]);
 
   // 3. Generate time slots based on selected date AND location, and filter booked/blocked slots
@@ -211,23 +220,31 @@ appointments?.forEach(appt => {
     const day = new Date(parseInt(p[0]), parseInt(p[1])-1, parseInt(p[2])).getDay();
 
     let allSlots: string[] = [];
+    let clinicClosedMessage: string | null = null;
 
     if (form.location === LOCATIONS.THERGAON) {
-      if (day === 0 || day === 4) return [];
-      allSlots = generateTimeSlots(18, 0, 20, 30); // 6:00 PM to 8:30 PM (last slot)
-    } else if (form.location === LOCATIONS.MANIPAL) {
-      if (day === 1) {
-        return [{ slot: 'Dr. Teje is not available at Manipal on Mondays. Please select another day or choose Thergaon Clinic.', isBooked: true }];
-      } else if (day === 4) {
-        allSlots = generateTimeSlots(14, 0, 20, 0); // 2:00 PM to 8:00 PM
-      } else if (day === 0) {
-        allSlots = generateTimeSlots(10, 0, 12, 0); // 10:00 AM to 12:00 PM
+      if (day === 0 || day === 4) { // Sunday or Thursday
+        clinicClosedMessage = 'Thergaon Clinic is closed on this day.';
       } else {
-        allSlots = generateTimeSlots(9, 0, 15, 0); // 9:00 AM to 3:00 PM
+        allSlots = generateTimeSlots(18, 0, 20, 30); // 6:00 PM to 8:30 PM (last slot)
+      }
+    } else if (form.location === LOCATIONS.MANIPAL) {
+      if (day === 1) { // Monday
+        clinicClosedMessage = 'Manipal Hospital is closed on this day.';
+      } else if (day === 4) { // Thursday
+        allSlots = generateTimeSlots(14, 0, 19, 30); // 2:00 PM to 7:30 PM (last slot)
+      } else if (day === 0) { // Sunday
+        allSlots = generateTimeSlots(10, 0, 11, 45); // 10:00 AM to 11:45 AM (last slot)
+      } else { // Tuesday, Wednesday, Friday, Saturday
+        allSlots = generateTimeSlots(9, 0, 14, 45); // 9:00 AM to 2:45 PM (last slot)
       }
     }
 
-    const locationKey = form.location === LOCATIONS.THERGAON ? 'thergaon' : 'manipal';
+    if (clinicClosedMessage) {
+      return [{ slot: clinicClosedMessage, isBooked: true }];
+    }
+
+    const locationKey = form.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal';
     
     // Filter out individually blocked slots
     const filteredSlots = allSlots.filter(slot => {
@@ -246,7 +263,8 @@ appointments?.forEach(appt => {
         const slotTime = new Date(`2000/01/01 ${slot}`);
         const fromTime = new Date(`2000/01/01 ${block.from}`);
         const toTime = new Date(`2000/01/01 ${block.to}`);
-        if (slotTime >= fromTime && slotTime < toTime) { // Block until 'to' time, not including 'to'
+        // Check if slotTime is within the blocked range [fromTime, toTime)
+        if (slotTime >= fromTime && slotTime < toTime) { 
           isCustomBlocked = true;
           break;
         }
@@ -273,9 +291,10 @@ appointments?.forEach(appt => {
         if (next.date) {
           const dp = next.date.split('-');
           const day = new Date(parseInt(dp[0]), parseInt(dp[1])-1, parseInt(dp[2])).getDay();
-          if (value === LOCATIONS.THERGAON && (day === 0 || day === 4)) {
+          // Check if the selected date is a holiday for the new location
+          if (value === LOCATIONS.THERGAON && (day === 0 || day === 4)) { // Sunday or Thursday
             next.date = ''; // Reset date if invalid for Thergaon
-          } else if (value === LOCATIONS.MANIPAL && day === 1) {
+          } else if (value === LOCATIONS.MANIPAL && day === 1) { // Monday
             next.date = ''; // Reset date if invalid for Manipal
           }
         }
@@ -285,9 +304,10 @@ appointments?.forEach(appt => {
       if (name === 'date') {
         const vp = value.split('-');
         const day = new Date(parseInt(vp[0]), parseInt(vp[1])-1, parseInt(vp[2])).getDay();
-        if (next.location === LOCATIONS.THERGAON && (day === 0 || day === 4)) {
+        // Check if the selected location is closed on the new date
+        if (next.location === LOCATIONS.THERGAON && (day === 0 || day === 4)) { // Sunday or Thursday
           next.location = ''; // Reset location if Thergaon is closed
-        } else if (next.location === LOCATIONS.MANIPAL && day === 1) {
+        } else if (next.location === LOCATIONS.MANIPAL && day === 1) { // Monday
           next.location = ''; // Reset location if Manipal is closed
         }
         next.timeSlot = ''; // Always reset time slot
@@ -308,7 +328,7 @@ appointments?.forEach(appt => {
     if (!form.location) newErrors.location = 'Location is required';
     if (!form.date) newErrors.date = 'Date is required';
     
-    const isTimeSlotValid = form.timeSlot && !availableTimeSlots[0]?.slot?.includes('not available');
+    const isTimeSlotValid = form.timeSlot && !availableTimeSlots[0]?.slot?.includes('not available') && !availableTimeSlots[0]?.slot?.includes('closed');
     if (!isTimeSlotValid) {
       newErrors.timeSlot = 'Time slot is required';
     } else {
@@ -382,7 +402,7 @@ alert(JSON.stringify(appointmentError));
       // 2. Block the slot in Supabase
     const locationKey =
   form.location.toLowerCase().includes('thergaon')
-    ? 'Thergaon'
+    ? 'Thergaon Clinic'
     : 'Manipal Hospital';
 
       const { error: blockError } = await supabase
@@ -540,13 +560,13 @@ alert(JSON.stringify(appointmentError));
                 <label className="block font-sans text-xs font-semibold text-navy-700 uppercase tracking-wide mb-1.5">Time Slot *</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Clock size={16} className="text-gray-400" /></div>
-                  <select name="timeSlot" value={form.timeSlot} onChange={handleChange} disabled={!form.date || !form.location || availableTimeSlots[0]?.slot?.includes('not available')} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${errors.timeSlot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}>
+                  <select name="timeSlot" value={form.timeSlot} onChange={handleChange} disabled={!form.date || !form.location || availableTimeSlots[0]?.slot?.includes('closed')} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${errors.timeSlot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}>
                     <option value="">
                       {(!form.date || !form.location) ? 'Select date & location first' : 
-                       (availableTimeSlots[0]?.slot?.includes('not available') ? availableTimeSlots[0].slot : 'Select a slot')}
+                       (availableTimeSlots[0]?.slot?.includes('closed') ? availableTimeSlots[0].slot : 'Select a slot')}
                     </option>
                     {availableTimeSlots.map((slotInfo, index) => (
-                      slotInfo.slot.includes('not available') ? (
+                      slotInfo.slot.includes('closed') ? (
                         <option key={index} value={slotInfo.slot} disabled className="text-gray-500">
                           {slotInfo.slot}
                         </option>
@@ -564,7 +584,7 @@ alert(JSON.stringify(appointmentError));
                   </select>
                 </div>
                 {errors.timeSlot && <p className="text-red-500 text-xs mt-1">{errors.timeSlot}</p>}
-                {form.date && form.location && !availableTimeSlots[0]?.slot?.includes('not available') && (
+                {form.date && form.location && !availableTimeSlots[0]?.slot?.includes('closed') && (
                   <p className="text-gray-500 text-xs mt-1 font-sans">Slots are subject to availability. Dr. Teje's team will confirm via WhatsApp.</p>
                 )}
               </div>

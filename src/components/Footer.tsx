@@ -72,7 +72,7 @@ export default function Footer({ onNavigate }: FooterProps) {
                 <div className="flex items-start gap-2">
                   <Clock size={18} className="text-teal-500 flex-shrink-0 mt-1" />
                   <p className="font-sans text-gray-400 text-sm">
-                    Mon-Sat: 6:00 PM – 8:30 PM <br />
+                    Mon-Sat: 6:00 PM – 9:00 PM <br />
                     (Closed on Thu & Sun)
                   </p>
                 </div>
@@ -101,7 +101,7 @@ export default function Footer({ onNavigate }: FooterProps) {
                   <Clock size={18} className="text-blue-400 flex-shrink-0 mt-1" />
                   <p className="font-sans text-gray-400 text-sm">
                     Tue, Wed, Fri, Sat: 9:00 AM – 3:00 PM <br />
-                    Thu: 2:00 PM – 8:00 PM <br />
+                    Thu: 2:00 PM – 7:30 PM <br />
                     Sun: 10:00 AM – 12:00 PM <br />
                     (Closed on Mon)
                   </p>
