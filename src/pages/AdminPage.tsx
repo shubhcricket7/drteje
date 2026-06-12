@@ -389,8 +389,8 @@ export default function AdminPage() {
     }
 
     const { error } = await supabase
-      .from('blocked_slots')
-      .insert(payload);
+  .from("blocked_slots")
+  .insert([payload]);
 
     if (error) {
       console.error('Error blocking slot:', error);

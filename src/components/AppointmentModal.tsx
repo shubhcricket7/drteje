@@ -243,20 +243,28 @@ appointments?.forEach(appt => {
     if (clinicClosedMessage) {
       return [{ slot: clinicClosedMessage, isBooked: true }];
     }
+const locationKey = form.location.toLowerCase().includes("thergaon")
+  ? "thergaon"
+  : "manipal";
 
-    const locationKey = form.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal';
+		const filteredSlots = allSlots.filter(slot => {
+  const slotKey = `${form.date}-${locationKey}-${slot}`;
+
+  console.log("Checking:", slotKey);
+  console.log("Blocked:", blockedSlots);
+
+  return !blockedSlots.includes(slotKey);
+});
     
-    // Filter out individually blocked slots
-    const filteredSlots = allSlots.filter(slot => {
-      const slotKey = `${form.date}-${locationKey}-${slot}`;
-      return !blockedSlots.includes(slotKey);
-    });
 
     // Filter out custom hour blocks
-    const customBlockedForDateLocation = blockedCustomHours.filter(b => 
-      b.blocked_date === form.date && (b.location === 'All Locations' || b.location === form.location)
-    );
-
+   const customBlockedForDateLocation = blockedCustomHours.filter(b =>
+  b.date === form.date &&
+  (b.location === 'All Locations' || b.location === form.location)
+);
+console.log("Blocked Slots:", blockedSlots);
+console.log("Date:", form.date);
+console.log("Location:", form.location);
     const finalSlots = filteredSlots.map(slot => {
       let isCustomBlocked = false;
       for (const block of customBlockedForDateLocation) {
