@@ -136,11 +136,10 @@ export default function AdminPage() {
     const today = getTodayLocal();
 
     const { data, error } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('appointment_date', today)
-      .order('appointment_time', { ascending: true });
-
+  .from('appointments')
+  .select('*')
+  .order('appointment_date', { ascending: true })
+  .order('appointment_time', { ascending: true });
     if (error) {
       console.error('Error fetching appointments:', error);
       toast.error('Failed to fetch appointments.');
@@ -452,10 +451,28 @@ const displayDate = shouldShowTomorrow
   ? new Date(now.getTime() + 24 * 60 * 60 * 1000)
   : now;
 
-const targetDate = displayDate.toISOString().split("T")[0];
+const targetDate =
+  displayDate.getFullYear() +
+  "-" +
+  String(displayDate.getMonth() + 1).padStart(2, "0") +
+  "-" +
+  String(displayDate.getDate()).padStart(2, "0");
 
-const todayAppointments = appointments.filter(
-  app => app.appointment_date === targetDate
+const todayAppointments = appointments.filter(app => {
+  return app.appointment_date === targetDate;
+});
+
+console.log("targetDate =", targetDate);
+console.log("displayDate =", displayDate);
+console.log("appointments =", appointments);
+
+appointments.forEach(app => {
+  console.log("DATE =", app.appointment_date);
+});
+
+console.log(
+  "filtered =",
+  appointments.filter(app => app.appointment_date?.startsWith(targetDate))
 );
   const thergaonAppointments = todayAppointments.filter(appt => appt.location === LOCATIONS.THERGAON);
   const manipalAppointments = todayAppointments.filter(appt => appt.location === LOCATIONS.MANIPAL);
