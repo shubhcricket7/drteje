@@ -496,7 +496,7 @@ alert(JSON.stringify(appointmentError));
         return; // STOP here if block failed
       }
       
-      // 3. Show success message (no redirect to patient's WhatsApp)
+      // 3. Show success message
       setSubmitSuccess(true);
       toast.success("✅ Appointment request submitted successfully. Dr. Teje's team will review your request and confirm it shortly via WhatsApp.", {
         position: "top-center",
@@ -523,7 +523,8 @@ alert(JSON.stringify(appointmentError));
       const whatsappUrlToDr = 
         `https://wa.me/918999046916?text=${encodeURIComponent(whatsappMessageToDr)}`;
       
-      window.open(whatsappUrlToDr, '_blank');
+      // Use window.location.href for better compatibility on iPhone Safari
+      window.location.href = whatsappUrlToDr;
 
       setForm(initialForm);
       onClose();
@@ -647,12 +648,11 @@ alert(JSON.stringify(appointmentError));
                           >
                             {slotInfo.slot} {slotInfo.isBooked && '— Booked'}
                           </button>
-                        ))
-                      )}
+                        )))}
                     </div>
                   )}
                 </div>
-                {errors.timeSlot && <p className="text-red-500 text-xs mt-1">{errors.timeSlot}</p>}
+                {errors.timeSlot && <p className="text-red-500 text-500 text-xs mt-1">{errors.timeSlot}</p>}
                 {form.date && form.location && !availableTimeSlots[0]?.slot?.includes('closed') && (
                   <p className="text-gray-500 text-xs mt-1 font-sans">Slots are subject to availability. Dr. Teje's team will confirm via WhatsApp.</p>
                 )}
