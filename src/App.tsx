@@ -6,7 +6,7 @@ import AboutPage from './pages/AboutPage';
 import ExpertisePage from './pages/ExpertisePage';
 import ServicesPage from './pages/ServicesPage';
 import TestimonialsPage from './pages/TestimonialsPage';
-import AppointmentPage from './pages/AppointmentPage';
+
 import BlogPage from './pages/BlogPage';
 import ContactPage from './pages/ContactPage';
 import BlogPostPage from './pages/BlogPostPage';
@@ -49,8 +49,7 @@ function App() {
         return <ServicesPage onNavigate={navigate} />;
       case 'testimonials':
         return <TestimonialsPage onNavigate={navigate} onOpenModal={openModal} />;
-      case 'appointments':
-        return <AppointmentPage />;
+      
       case 'blog':
         return <BlogPage onNavigate={navigate} />;
       case 'contact':

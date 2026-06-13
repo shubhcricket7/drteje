@@ -45,7 +45,7 @@ const fmt = (dateStr: string) => {
 };
 
 // Plain JavaScript date formatting function for display
-const formatDisplayDate = (dateStr: string) => {
+const formatDisplaydate = (dateStr: string) => {
   const parts = dateStr.split('-');
   const d = new Date(
     parseInt(parts[0]), 
@@ -133,14 +133,11 @@ export default function AdminPage() {
 
   const fetchAppointments = async () => {
     setLoadingAppointments(true);
-    const today = getTodayLocal();
-
     const { data, error } = await supabase
       .from('appointments')
       .select('*')
-      .eq('appointment_date', today)
+      .order('appointment_date', { ascending: true })
       .order('appointment_time', { ascending: true });
-
     if (error) {
       console.error('Error fetching appointments:', error);
       toast.error('Failed to fetch appointments.');
@@ -189,21 +186,31 @@ export default function AdminPage() {
     } else {
       toast.success(`Appointment ${status} successfully!`);
       
+      const patientCleanedPhone = appointment.phone.replace(/\D/g, ''); // Basic cleaning
+      const appointmentTime = appointment.time_slot || appointment.appointment_time;
+      const formattedDate = fmt(appointment.appointment_date);
+
+      let whatsappMessage = '';
       if (status === 'confirmed') {
-        const patientCleanedPhone = appointment.phone.replace(/\D/g, ''); // Basic cleaning
-        const confirmationMessage = 
+        whatsappMessage = 
           `Hello ${appointment.patient_name} 👋` +
-          `\n\nYour appointment with *Dr. Prathamesh Teje* is confirmed! ✅` +
-          `\n\n📍 ${appointment.location}` +
-          `\n📅 ${fmt(appointment.appointment_date)}` + // Using fmt helper
-          `\n⏰ ${appointment.time_slot}` +
-          `\n\nPlease arrive 5 mins early.` +
-          `\n— Dr. Teje's Clinic 🏥`;
-        
-        const whatsappUrl = `https://wa.me/${patientCleanedPhone}?text=${encodeURIComponent(confirmationMessage)}`;
-        window.open(whatsappUrl, '_blank');
+          `\n\nYour appointment with *Dr. Prathamesh Teje* has been CONFIRMED ✅` +
+          `\n\n📍 Location: ${appointment.location}` +
+          `\n📅 Date: ${formattedDate}` +
+          `\n⏰ Time: ${appointmentTime}` +
+          `\n\nPlease arrive 5–10 minutes early.` +
+          `\n\nThank you for choosing Dr. Teje's Clinic. 🏥`;
       } else if (status === 'cancelled') {
-        // Also delete the corresponding blocked slot
+        whatsappMessage = 
+          `Hello ${appointment.patient_name} 👋` +
+          `\n\nYour appointment with *Dr. Prathamesh Teje* has been CANCELLED ❌` +
+          `\n\n📍 Location: ${appointment.location}` +
+          `\n📅 Date: ${formattedDate}` +
+          `\n⏰ Time: ${appointmentTime}` +
+          `\n\nIf you wish to reschedule, please book another appointment or contact the clinic.` +
+          `\n\nThank you.`;
+
+        // Also delete the corresponding blocked slot if cancelled
         const { error: deleteBlockError } = await supabase
           .from('blocked_slots')
           .delete()
@@ -216,6 +223,10 @@ export default function AdminPage() {
           toast.error('Failed to delete associated blocked slot.');
         }
       }
+      
+      const whatsappUrl = `https://wa.me/${patientCleanedPhone}?text=${encodeURIComponent(whatsappMessage)}`;
+      window.open(whatsappUrl, '_blank');
+      
       fetchAppointments(); // Refresh the list
     }
   };
@@ -427,10 +438,74 @@ export default function AdminPage() {
     }
   };
 
-  const todayAppointments = appointments.filter(appt => appt.appointment_date === getTodayLocal());
+const now = new Date();
+
+// 9:30 PM ke baad kal ki date use karo
+const shouldShowTomorrow =
+  now.getHours() > 21 ||
+  (now.getHours() === 21 && now.getMinutes() >= 30);
+
+const displayDate = shouldShowTomorrow
+  ? new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  : now;
+
+const targetDate =
+  displayDate.getFullYear() +
+  "-" +
+  String(displayDate.getMonth() + 1).padStart(2, "0") +
+  "-" +
+  String(displayDate.getDate()).padStart(2, "0");
+
+const todayAppointments = appointments.filter(app => {
+  return app.appointment_date === targetDate;
+});
+
+console.log("targetDate =", targetDate);
+console.log("displayDate =", displayDate);
+console.log("appointments =", appointments);
+
+appointments.forEach(app => {
+  console.log("DATE =", app.appointment_date);
+});
+
+console.log(
+  "filtered =",
+  appointments.filter(app => app.appointment_date?.startsWith(targetDate))
+);
   const thergaonAppointments = todayAppointments.filter(appt => appt.location === LOCATIONS.THERGAON);
   const manipalAppointments = todayAppointments.filter(appt => appt.location === LOCATIONS.MANIPAL);
+const exportTodayAppointments = () => {
+  const today = new Date().toISOString().split("T")[0];
 
+  const rows = appointments
+    .filter(a => a.appointment_date === today)
+    .map(a => ({
+      Time: a.appointment_time || a.time_slot,
+      Name: a.patient_name,
+      Phone: a.phone,
+      Location: a.location,
+      Reason: a.reason || "",
+      Status: a.status,
+    }));
+
+  if (!rows.length) {
+    alert("No appointments for today");
+    return;
+  }
+
+  const csv = [
+    Object.keys(rows[0]).join(","),
+    ...rows.map(r => Object.values(r).join(","))
+  ].join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `appointments-${today}.csv`;
+  a.click();
+};
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
@@ -538,22 +613,36 @@ export default function AdminPage() {
         <div className="p-6">
           {activeTab === 'appointments' && (
             <div>
-              <h2 className="text-2xl font-semibold text-gray-800 mb-4">Today's Appointments</h2>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+  {shouldShowTomorrow ? "Tomorrow's Appointments" : "Today's Appointments"}
+</h2>
+
+<button
+  onClick={exportTodayAppointments}
+  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+>
+  Export CSV
+</button>
               <div className="mb-6 p-4 bg-teal-50 border-l-4 border-teal-500 text-teal-800">
-                <p className="font-semibold text-lg">📅 Today: {todayAppointments.length} appointments</p>
-                <p className="text-sm">📍 Thergaon: {thergaonAppointments.length} | Manipal: {manipalAppointments.length}</p>
-              </div>
+  <p className="font-semibold text-lg">
+    📅 {shouldShowTomorrow ? "Tomorrow" : "Today"}: {todayAppointments.length} appointments
+  </p>
+
+  <p className="text-sm">
+    📍 Thergaon: {thergaonAppointments.length} | Manipal: {manipalAppointments.length}
+  </p>
+</div>
               {loadingAppointments ? (
                 <div className="text-center py-8 text-gray-500">Loading appointments...</div>
               ) : appointments.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">No appointments found for today.</div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {appointments.map((appt) => (
+                  {todayAppointments.map((appt) => (
                     <div key={appt.id} className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-lg font-semibold text-gray-900 flex items-center">
-                          <Clock size={18} className="mr-2 text-teal-600" /> {appt.time_slot}
+                          <Calendar size={18} className="mr-2 text-teal-600" /> {fmt(appt.appointment_date)}
                         </p>
                         <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
                           appt.status === 'confirmed' ? 'bg-green-100 text-green-800' :
@@ -565,6 +654,9 @@ export default function AdminPage() {
                       </div>
                       <p className="text-gray-700 flex items-center mb-1">
                         <MapPin size={16} className="mr-2 text-gray-500" /> {appt.location}
+                      </p>
+                      <p className="text-gray-700 flex items-center mb-1">
+                        <Clock size={16} className="mr-2 text-gray-500" /> {appt.time_slot || appt.appointment_time}
                       </p>
                       <p className="text-gray-700 flex items-center mb-1">
                         <User size={16} className="mr-2 text-gray-500" /> {appt.patient_name}
@@ -657,7 +749,7 @@ export default function AdminPage() {
                       value={blockForm.time_slot}
                       onChange={handleBlockChange}
                       disabled={!blockForm.blocked_date || !blockForm.location || availableBlockTimeSlots[0]?.slot?.includes('closed')}
-                      className={`w-full py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${blockErrors.time_slot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}
+                      className={`w-full py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${blockErrors.time_slot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-50focus:ring-teal-100'}`}
                     >
                       <option value="">
                         {(!blockForm.blocked_date || !blockForm.location || blockForm.location === LOCATIONS.ALL) ? 'Select date & location first' :
@@ -665,8 +757,7 @@ export default function AdminPage() {
                       </option>
                       {availableBlockTimeSlots.map((slotInfo, index) => (
                         slotInfo.slot.includes('closed') ? (
-                          <option key={index} value={slotInfo.slot} disabled className="text-gray-50```typescript
-0">
+                          <option key={index} value={slotInfo.slot} disabled className="text-gray-500">
                             {slotInfo.slot}
                           </option>
                         ) : (
