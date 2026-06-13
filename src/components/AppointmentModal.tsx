@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { X, Calendar, Clock, User, Phone, FileText, MapPin } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { X, Calendar, Clock, User, Phone, FileText, MapPin, ChevronDown } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { supabase } from '../lib/supabase'; // Import supabase client
 
@@ -60,7 +60,7 @@ const generateTimeSlots = (startHour: number, startMinute: number, endHour: numb
 const cleanPhone = (phone: string) => {
   let cleaned = phone.replace(/\D/g, '');
   if (cleaned.startsWith('0')) {
-    cleaned = '91' + cleaned.slice(1);
+    cleaned = '91' + cleaned;
   } else if (cleaned.length === 10) {
     cleaned = '91' + cleaned;
   } else if (cleaned.startsWith('91') && cleaned.length === 12) {
@@ -79,6 +79,9 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [isTimeSlotDropdownOpen, setIsTimeSlotDropdownOpen] = useState(false);
+  const timeSlotDropdownRef = useRef<HTMLDivElement>(null);
+
 
   // Close on escape key
   useEffect(() => {
@@ -98,6 +101,19 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     }
     return () => document.body.style.overflow = 'unset';
   }, [isOpen]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (timeSlotDropdownRef.current && !timeSlotDropdownRef.current.contains(event.target as Node)) {
+        setIsTimeSlotDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [timeSlotDropdownRef]);
 
   // Fetch all blocked slots (full days, custom hours, individual slots) from Supabase
   useEffect(() => {
@@ -358,6 +374,14 @@ if (form.date === new Date().toISOString().split("T")[0]) {
     }
   };
 
+  const handleTimeSlotSelect = (slot: string) => {
+    setForm((prev) => ({ ...prev, timeSlot: slot }));
+    setIsTimeSlotDropdownOpen(false);
+    if (errors.timeSlot) {
+      setErrors((prev) => ({ ...prev, timeSlot: '' }));
+    }
+  };
+
   const validate = () => {
     const newErrors: Partial<FormState> = {};
     if (!form.name.trim()) newErrors.name = 'Name is required';
@@ -418,7 +442,7 @@ if (form.date === new Date().toISOString().split("T")[0]) {
         .from('appointments')
         .insert({
           patient_name: form.name,
-          phone: form.phone,
+          phone: cleanPhone(form.phone), // Clean phone number before saving
           location: form.location,
           appointment_date: form.date,
           appointment_time: form.timeSlot,
@@ -503,6 +527,11 @@ alert(JSON.stringify(appointmentError));
 
   if (!isOpen) return null;
 
+  const isDisabledTimeSlot = !form.date || !form.location;
+  const displayTimeSlotPlaceholder = isDisabledTimeSlot
+    ? 'Select date & location first'
+    : (availableTimeSlots[0]?.slot?.includes('closed') ? availableTimeSlots[0].slot : 'Select a slot');
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
       <div className="absolute inset-0 bg-navy-900/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
@@ -578,42 +607,38 @@ alert(JSON.stringify(appointmentError));
 
               <div>
                 <label className="block font-sans text-xs font-semibold text-navy-700 uppercase tracking-wide mb-1.5">Time Slot *</label>
-                <div className="relative">
+                <div className="relative" ref={timeSlotDropdownRef}>
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Clock size={16} className="text-gray-400" /></div>
-<select
-  name="timeSlot"
-  value={form.timeSlot}
-  onChange={handleChange}
-  disabled={!form.date || !form.location}
-  style={{
-    WebkitAppearance: "menulist",
-    appearance: "auto",
-    color: "#000",
-    backgroundColor: "#fff",
-  }}
-  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-black appearance-auto"
->
-                    <option value="">
-                      {(!form.date || !form.location) ? 'Select date & location first' : 
-                       (availableTimeSlots[0]?.slot?.includes('closed') ? availableTimeSlots[0].slot : 'Select a slot')}
-                    </option>
-                    {availableTimeSlots.map((slotInfo, index) => (
-                      slotInfo.slot.includes('closed') ? (
-                        <option key={index} value={slotInfo.slot} disabled className="text-gray-500">
-                          {slotInfo.slot}
-                        </option>
+                  <button
+                    type="button"
+                    onClick={() => !isDisabledTimeSlot && setIsTimeSlotDropdownOpen(!isTimeSlotDropdownOpen)}
+                    disabled={isDisabledTimeSlot}
+                    className={`w-full pl-10 pr-4 py-2.5 border rounded-lg font-sans text-sm text-left bg-white focus:outline-none focus:ring-2 transition-colors flex items-center justify-between ${isDisabledTimeSlot ? 'text-gray-400 bg-gray-50 cursor-not-allowed' : 'text-navy-700 border-gray-200 focus:border-teal-500 focus:ring-teal-100'} ${errors.timeSlot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : ''}`}
+                  >
+                    {form.timeSlot || displayTimeSlotPlaceholder}
+                    <ChevronDown size={16} className={`text-gray-400 transition-transform ${isTimeSlotDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isTimeSlotDropdownOpen && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto custom-scrollbar">
+                      {availableTimeSlots.length === 0 || availableTimeSlots[0]?.slot?.includes('closed') ? (
+                        <div className="px-4 py-2 text-gray-500 text-sm">
+                          {displayTimeSlotPlaceholder}
+                        </div>
                       ) : (
-                        <option 
-                          key={slotInfo.slot} 
-                          value={slotInfo.slot} 
-                          disabled={slotInfo.isBooked} 
-                          className={slotInfo.isBooked ? 'text-gray-500 italic' : ''}
-                        >
-                          {slotInfo.slot} {slotInfo.isBooked && '— Booked'}
-                        </option>
-                      )
-                    ))}
-                  </select>
+                        availableTimeSlots.map((slotInfo, index) => (
+                          <button
+                            key={slotInfo.slot}
+                            type="button"
+                            onClick={() => !slotInfo.isBooked && handleTimeSlotSelect(slotInfo.slot)}
+                            disabled={slotInfo.isBooked}
+                            className={`block w-full text-left px-4 py-2 text-sm font-sans transition-colors ${slotInfo.isBooked ? 'text-gray-500 italic cursor-not-allowed' : 'text-navy-700 hover:bg-teal-50 hover:text-teal-700'} ${form.timeSlot === slotInfo.slot ? 'bg-teal-100 text-teal-800' : ''}`}
+                          >
+                            {slotInfo.slot} {slotInfo.isBooked && '— Booked'}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
                 {errors.timeSlot && <p className="text-red-500 text-xs mt-1">{errors.timeSlot}</p>}
                 {form.date && form.location && !availableTimeSlots[0]?.slot?.includes('closed') && (
