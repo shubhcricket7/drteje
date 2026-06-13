@@ -283,22 +283,21 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     if (clinicClosedMessage) {
       return [{ slot: clinicClosedMessage, isBooked: true }];
     }
-const locationKey = form.location.toLowerCase().includes("thergaon")
-  ? "thergaon"
-  : "manipal";
+    const locationKey = form.location.toLowerCase().includes("thergaon")
+      ? "thergaon"
+      : "manipal";
 
-		let filteredSlots = allSlots.filter(slot => {
-  const slotKey = `${form.date}-${locationKey}-${slot}`;
-
-  return !blockedSlots.includes(slotKey);
-});
+    let filteredSlots = allSlots.filter(slot => {
+      const slotKey = `${form.date}-${locationKey}-${slot}`;
+      return !blockedSlots.includes(slotKey);
+    });
     
 
     // Filter out custom hour blocks
-   const customBlockedForDateLocation = blockedCustomHours.filter(b =>
-  b.date === form.date &&
-  (b.location === 'All Locations' || b.location === form.location)
-);
+    const customBlockedForDateLocation = blockedCustomHours.filter(b =>
+      b.date === form.date &&
+      (b.location === 'All Locations' || b.location === form.location)
+    );
     let finalSlots = filteredSlots.map(slot => {
       let isCustomBlocked = false;
       for (const block of customBlockedForDateLocation) {
@@ -313,18 +312,33 @@ const locationKey = form.location.toLowerCase().includes("thergaon")
       }
       return { slot, isBooked: isCustomBlocked };
     });
-const now = new Date();
 
-if (form.date === new Date().toISOString().split("T")[0]) {
-  finalSlots = finalSlots.filter(({ slot }) => {
-    const slotTime = new Date(`2000-01-01 ${slot}`);
-    const currentTime = new Date();
+    const today = new Date();
+    const todayDateString = getTodayLocal();
 
-    currentTime.setFullYear(2000, 0, 1);
+    if (form.date === todayDateString) {
+      const now = new Date();
+      finalSlots = finalSlots.filter(({ slot }) => {
+        const [time, ampm] = slot.split(' ');
+        let [hours, minutes] = time.split(':').map(Number);
 
-    return slotTime > currentTime;
-  });
-}
+        if (ampm === 'PM' && hours !== 12) {
+          hours += 12;
+        }
+        if (ampm === 'AM' && hours === 12) { // Midnight case
+          hours = 0;
+        }
+
+        const slotDateTime = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          hours,
+          minutes
+        );
+        return slotDateTime > now;
+      });
+    }
     return finalSlots;
 
   }, [form.date, form.location, blockedSlots, blockedCustomHours]);
@@ -653,7 +667,7 @@ alert(JSON.stringify(appointmentError));
               <div className="relative">
                 <div className="absolute top-3 left-3 pointer-events-none"><FileText size={16} className="text-gray-400" /></div>
                 <textarea name="reason" value={form.reason} onChange={handleChange} rows={2} placeholder="Briefly describe your symptoms..." className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg font-sans text-sm focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-colors resize-none" />
-              </div>            </div>
+              </div></div>
 
             {/* Submit */}
             <div className="pt-2">
