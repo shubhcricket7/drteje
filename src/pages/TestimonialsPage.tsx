@@ -59,7 +59,7 @@ export const videoTestimonials: VideoTestimonial[] = [
     patientName: 'Mrs. P.M.',
     reviewSnippet: 'Case of dengue shock syndrome with seizure and hepatitis.',
     stars: 5,
-    treatmentTag: 'Dengue Shock Syndrome Recovery', // Added treatmentTag for this video
+    // No treatmentTag for this video as requested
     thumbnail: 'https://img.youtube.com/vi/yjB-UalZOMQ/hqdefault.jpg',
   },
   {
@@ -95,8 +95,7 @@ const treatmentColors: Record<string, string> = {
   'Complicated Abdominal Sepsis': 'bg-red-50 text-red-700 border-red-100',
   'Coronary Artery Disease with Diabetes': 'bg-purple-50 text-purple-700 border-purple-100',
   'Rare Anti-MOG Syndrome': 'bg-orange-50 text-orange-700 border-orange-100',
-  'Hypertension': 'bg-blue-50 text-blue-700 border-blue-100',
-  'Dengue Shock Syndrome Recovery': 'bg-teal-50 text-teal-700 border-teal-100', // Added color for new tag
+  'Hypertension': 'bg-blue-50 text-blue-700 border-blue-100', // Kept for video 4
   'Renal Calculi with Generalized Rashes': 'bg-teal-50 text-teal-700 border-teal-100',
 };
 

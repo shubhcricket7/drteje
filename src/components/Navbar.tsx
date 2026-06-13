@@ -13,7 +13,7 @@ const navItems = [
   { id: 'expertise', label: 'Expertise' },
   { id: 'services', label: 'Services' },
   { id: 'testimonials', label: 'Testimonials' }, // Added Testimonials
-  
+  { id: 'appointments', label: 'Appointments' },
   { id: 'blog', label: 'Health Blog' },
   { id: 'contact', label: 'Contact' },
 ];

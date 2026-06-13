@@ -76,7 +76,9 @@ export default function ContactPage({ onNavigate }: ContactPageProps) {
                     Survey No 111/11/1, Veerbhadra Nagar Road,<br />
                     Baner-Mhalunge Main Road, Baner, Pune – 411045
                   </p>
-                  
+                  <p className="font-sans text-teal-600 font-semibold text-sm mt-3 flex items-center gap-2 bg-teal-50 inline-flex px-3 py-1.5 rounded-lg">
+                    <Phone size={16} /> 020 6813 8888
+                  </p>
                 </div>
               </div>
               <div className="bg-gray-50 rounded-xl p-5 mb-8 flex-grow border border-gray-100">

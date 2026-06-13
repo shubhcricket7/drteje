@@ -102,23 +102,12 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
   // Fetch all blocked slots (full days, custom hours, individual slots) from Supabase
   useEffect(() => {
     const fetchAllBlockedSlots = async () => {
-      // Fetch blocked_slots from the database
-      const { data: dbBlockedSlots, error: dbBlockedSlotsError } = await supabase
+      const { data, error } = await supabase
         .from('blocked_slots')
         .select('blocked_date, location, time_slot, block_type, from_time, to_time');
 
-      if (dbBlockedSlotsError) {
-        console.error('Error fetching blocked slots:', dbBlockedSlotsError);
-        return;
-      }
-
-      // Fetch appointments from the database
-      const { data: appointments, error: appointmentsError } = await supabase
-        .from('appointments')
-        .select('appointment_date, location, appointment_time, status');
-
-      if (appointmentsError) {
-        console.error('Error fetching appointments:', appointmentsError);
+      if (error) {
+        console.error('Error fetching blocked slots:', error);
         return;
       }
 
@@ -126,41 +115,28 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
       const fullDays: { date: string; location: string }[] = [];
       const customHours: { date: string; location: string; from: string; to: string }[] = [];
 
-      // Process blocked_slots from the database
-      dbBlockedSlots?.forEach(block => {
-        // Only consider 'slot' type blocks if they are not associated with a cancelled appointment
+      data?.forEach(block => {
         if (block.block_type === 'slot' && block.time_slot) {
-          const locationKey = block.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal';
-          const isCancelledAppointmentBlock = appointments?.some(appt => 
-            appt.appointment_date === block.blocked_date &&
-            (appt.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal') === locationKey &&
-            appt.appointment_time === block.time_slot &&
-            appt.status === 'cancelled'
-          );
-
-          if (!isCancelledAppointmentBlock) {
-            slots.push(`${block.blocked_date}-${locationKey}-${block.time_slot}`);
-          }
+          slots.push(`${block.blocked_date}-${block.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal'}-${block.time_slot}`);
         } else if (block.block_type === 'full_day') {
           fullDays.push({ date: block.blocked_date, location: block.location });
         } else if (block.block_type === 'custom_hours' && block.from_time && block.to_time) {
           customHours.push({ date: block.blocked_date, location: block.location, from: block.from_time, to: block.to_time });
         }
-      });
+});
+			const { data: appointments } = await supabase
+  .from('appointments')
+  .select('appointment_date, location, appointment_time');
 
-      // Add 'pending' and 'confirmed' appointments to blocked slots
-      appointments?.forEach(appt => {
-        if (appt.status === 'pending' || appt.status === 'confirmed') {
-          const locationKey = appt.location.toLowerCase().includes('thergaon')
-            ? 'thergaon'
-            : 'manipal';
+appointments?.forEach(appt => {
+  const locationKey = appt.location.toLowerCase().includes('thergaon')
+    ? 'thergaon'
+    : 'manipal';
 
-          slots.push(
-            `${appt.appointment_date}-${locationKey}-${appt.appointment_time}`
-          );
-        }
-      });
-
+  slots.push(
+    `${appt.appointment_date}-${locationKey}-${appt.appointment_time}`
+  );
+});
       setBlockedSlots(slots);
       setBlockedFullDays(fullDays);
       setBlockedCustomHours(customHours);
@@ -267,23 +243,21 @@ export default function AppointmentModal({ isOpen, onClose }: AppointmentModalPr
     if (clinicClosedMessage) {
       return [{ slot: clinicClosedMessage, isBooked: true }];
     }
-const locationKey = form.location.toLowerCase().includes("thergaon")
-  ? "thergaon"
-  : "manipal";
 
-		let filteredSlots = allSlots.filter(slot => {
-  const slotKey = `${form.date}-${locationKey}-${slot}`;
-
-  return !blockedSlots.includes(slotKey);
-});
+    const locationKey = form.location.toLowerCase().includes('thergaon') ? 'thergaon' : 'manipal';
     
+    // Filter out individually blocked slots
+    const filteredSlots = allSlots.filter(slot => {
+      const slotKey = `${form.date}-${locationKey}-${slot}`;
+      return !blockedSlots.includes(slotKey);
+    });
 
     // Filter out custom hour blocks
-   const customBlockedForDateLocation = blockedCustomHours.filter(b =>
-  b.date === form.date &&
-  (b.location === 'All Locations' || b.location === form.location)
-);
-    let finalSlots = filteredSlots.map(slot => {
+    const customBlockedForDateLocation = blockedCustomHours.filter(b => 
+      b.blocked_date === form.date && (b.location === 'All Locations' || b.location === form.location)
+    );
+
+    const finalSlots = filteredSlots.map(slot => {
       let isCustomBlocked = false;
       for (const block of customBlockedForDateLocation) {
         const slotTime = new Date(`2000/01/01 ${slot}`);
@@ -297,18 +271,7 @@ const locationKey = form.location.toLowerCase().includes("thergaon")
       }
       return { slot, isBooked: isCustomBlocked };
     });
-const now = new Date();
 
-if (form.date === new Date().toISOString().split("T")[0]) {
-  finalSlots = finalSlots.filter(({ slot }) => {
-    const slotTime = new Date(`2000-01-01 ${slot}`);
-    const currentTime = new Date();
-
-    currentTime.setFullYear(2000, 0, 1);
-
-    return slotTime > currentTime;
-  });
-}
     return finalSlots;
 
   }, [form.date, form.location, blockedSlots, blockedCustomHours]);
@@ -433,7 +396,7 @@ alert(JSON.stringify(appointmentError));
         setSubmitError('Could not save appointment. Please try again.');
         toast.error('Could not save appointment. Please try again.');
         setIsSubmitting(false);
-        return; // STOP here if save failed
+        return; // STOP here — do not open WhatsApp if save failed
       }
 
       // 2. Block the slot in Supabase
@@ -457,12 +420,45 @@ alert(JSON.stringify(appointmentError));
         setSubmitError('Could not block slot. Please try again.');
         toast.error('Could not block slot. Please try again.');
         setIsSubmitting(false);
-        return; // STOP here if block failed
+        return; // STOP here — do not open WhatsApp if block failed
       }
+
+      const appointmentDate = getDisplayDate();
+      const patientCleanedPhone = cleanPhone(form.phone);
+
+      const confirmationMessage = 
+        `Hello ${form.name} 👋` +
+        `\n\nYour appointment with *Dr. Prathamesh Teje* is confirmed! ✅` +
+        `\n\n📍 ${form.location}` +
+        `\n📅 ${appointmentDate}` +
+        `\n⏰ ${form.timeSlot}` +
+        `\n\nPlease arrive 5 mins early.` +
+        `\n— Dr. Teje's Clinic 🏥`;
+
+      const confirmationLink = 
+        `https://wa.me/${patientCleanedPhone}?text=${encodeURIComponent(confirmationMessage)}`;
+
+      const whatsappMessage = 
+        `Hello Dr. Teje, I would like to book an appointment.` +
+        `\n\n*Patient Name:* ${form.name}` +
+        `\n*Phone:* ${form.phone}` +
+        `\n*Location:* ${form.location}` +
+        `\n*Date:* ${appointmentDate}` +
+        `\n*Time Slot:* ${form.timeSlot}` +
+        `\n*Reason:* ${form.reason || 'Not specified'}` +
+        `\n\n---` +
+        `\n⚡ *Click here to instantly confirm this appointment via WhatsApp:*` +
+        `\n${confirmationLink}`;
+
+      const whatsappUrl = 
+        `https://wa.me/918999046916?text=${encodeURIComponent(whatsappMessage)}`;
       
-      // 3. Show success message (no redirect to patient's WhatsApp)
+      // 3. ONLY THEN open WhatsApp
+      window.open(whatsappUrl, '_blank');
+
+      // 4. Show success message
       setSubmitSuccess(true);
-      toast.success("✅ Appointment request submitted successfully. Dr. Teje's team will review your request and confirm it shortly via WhatsApp.", {
+      toast.success("✅ Redirecting to WhatsApp! Dr. Teje will confirm your appointment shortly.", {
         position: "top-center",
         autoClose: 5000,
         hideProgressBar: false,
@@ -472,22 +468,6 @@ alert(JSON.stringify(appointmentError));
         progress: undefined,
         theme: "colored",
       });
-
-      // 4. Send booking request to Dr. Teje's WhatsApp
-      const appointmentDate = getDisplayDate();
-      const whatsappMessageToDr = 
-        `Hello Dr. Teje, I would like to book an appointment.` +
-        `\n\n*Patient Name:* ${form.name}` +
-        `\n*Phone:* ${form.phone}` +
-        `\n*Location:* ${form.location}` +
-        `\n*Date:* ${appointmentDate}` +
-        `\n*Time Slot:* ${form.timeSlot}` +
-        `\n*Reason:* ${form.reason || 'Not specified'}`;
-
-      const whatsappUrlToDr = 
-        `https://wa.me/918999046916?text=${encodeURIComponent(whatsappMessageToDr)}`;
-      
-      window.open(whatsappUrlToDr, '_blank');
 
       setForm(initialForm);
       onClose();
@@ -632,7 +612,7 @@ alert(JSON.stringify(appointmentError));
                  'Submit Appointment Request'}
               </button>
               {submitError && <p className="text-red-500 text-sm mt-2 text-center">{submitError}</p>}
-              <p className="text-center text-gray-400 text-xs mt-3 font-sans">You will be redirected to WhatsApp to notify Dr. Teje's team.</p>
+              <p className="text-center text-gray-400 text-xs mt-3 font-sans">You will be redirected to WhatsApp to confirm your booking.</p>
             </div>
 
           </form>
