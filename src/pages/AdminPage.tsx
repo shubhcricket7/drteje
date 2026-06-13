@@ -45,7 +45,7 @@ const fmt = (dateStr: string) => {
 };
 
 // Plain JavaScript date formatting function for display
-const formatDisplaydate = (dateStr: string) => {
+const formatDisplayDate = (dateStr: string) => {
   const parts = dateStr.split('-');
   const d = new Date(
     parseInt(parts[0]), 
@@ -225,7 +225,9 @@ export default function AdminPage() {
       }
       
       const whatsappUrl = `https://wa.me/${patientCleanedPhone}?text=${encodeURIComponent(whatsappMessage)}`;
-      window.open(whatsappUrl, '_blank');
+      
+      // Use window.location.href for better compatibility on iPhone Safari
+      window.location.href = whatsappUrl;
       
       fetchAppointments(); // Refresh the list
     }
@@ -749,7 +751,7 @@ const exportTodayAppointments = () => {
                       value={blockForm.time_slot}
                       onChange={handleBlockChange}
                       disabled={!blockForm.blocked_date || !blockForm.location || availableBlockTimeSlots[0]?.slot?.includes('closed')}
-                      className={`w-full py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${blockErrors.time_slot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-50focus:ring-teal-100'}`}
+                      className={`w-full py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${blockErrors.time_slot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}
                     >
                       <option value="">
                         {(!blockForm.blocked_date || !blockForm.location || blockForm.location === LOCATIONS.ALL) ? 'Select date & location first' :
