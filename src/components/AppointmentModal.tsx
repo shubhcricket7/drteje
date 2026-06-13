@@ -530,7 +530,7 @@ alert(JSON.stringify(appointmentError));
   const isDisabledTimeSlot = !form.date || !form.location;
   const displayTimeSlotPlaceholder = isDisabledTimeSlot
     ? 'Select date & location first'
-    : (availableTimeSlots[0]?.slot?.includes('closed') ? availableTimeSlots[0].slot : 'Select a slot');
+    : (availableTimeSlots.length === 0 || availableTimeSlots[0]?.slot?.includes('closed') ? availableTimeSlots[0]?.slot || 'No slots available' : 'Select a slot');
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
@@ -653,8 +653,7 @@ alert(JSON.stringify(appointmentError));
               <div className="relative">
                 <div className="absolute top-3 left-3 pointer-events-none"><FileText size={16} className="text-gray-400" /></div>
                 <textarea name="reason" value={form.reason} onChange={handleChange} rows={2} placeholder="Briefly describe your symptoms..." className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg font-sans text-sm focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-colors resize-none" />
-              </div>
-            </div>
+              </div>            </div>
 
             {/* Submit */}
             <div className="pt-2">
