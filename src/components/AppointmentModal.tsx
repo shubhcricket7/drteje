@@ -470,7 +470,6 @@ alert(JSON.stringify(appointmentError));
         console.error('Appointment save error:', appointmentError);
         setSubmitError('Could not save appointment. Please try again.');
         toast.error('Could not save appointment. Please try again.');
-        setIsSubmitting(false);
         return; // STOP here if save failed
       }
 
@@ -494,7 +493,6 @@ alert(JSON.stringify(appointmentError));
         console.error('Error blocking slot:', blockError);
         setSubmitError('Could not block slot. Please try again.');
         toast.error('Could not block slot. Please try again.');
-        setIsSubmitting(false);
         return; // STOP here if block failed
       }
       
@@ -535,7 +533,7 @@ alert(JSON.stringify(appointmentError));
       setSubmitError(error.message || 'Booking failed. Please try again.');
       toast.error(error.message || 'Booking failed. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Ensure loading state is always cleared
     }
   };
 
