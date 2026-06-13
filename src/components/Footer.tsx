@@ -65,15 +65,16 @@ export default function Footer({ onNavigate }: FooterProps) {
               <div className="space-y-3">
                 <div className="flex items-start gap-2">
                   <MapPin size={18} className="text-teal-500 flex-shrink-0 mt-1" />
-                  <p className="text-gray-300">
-  Greens Centre, Opposite Pudumjee Paper Mill
-</p>
-
-</div>   
+                  <p className="font-sans text-gray-400 text-sm">
+                    Greens Centre, Opposite Pudumjee Paper Mill, Thergaon, Pimpri-Chinchwad, Pune – 411033
+                  </p>
+                </div>
                 <div className="flex items-start gap-2">
-                  
-                  
-                 
+                  <Clock size={18} className="text-teal-500 flex-shrink-0 mt-1" />
+                  <p className="font-sans text-gray-400 text-sm">
+                    Mon-Sat: 6:00 PM – 9:00 PM <br />
+                    (Closed on Thu & Sun)
+                  </p>
                 </div>
                 <a
                   href="https://maps.app.goo.gl/pajyPZSXdb4GYNc76"
@@ -97,7 +98,13 @@ export default function Footer({ onNavigate }: FooterProps) {
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
-                  
+                  <Clock size={18} className="text-blue-400 flex-shrink-0 mt-1" />
+                  <p className="font-sans text-gray-400 text-sm">
+                    Tue, Wed, Fri, Sat: 9:00 AM – 3:00 PM <br />
+                    Thu: 2:00 PM – 7:30 PM <br />
+                    Sun: 10:00 AM – 12:00 PM <br />
+                    (Closed on Mon)
+                  </p>
                 </div>
                 <a
                   href="https://maps.app.goo.gl/pMJBgrX3WtyW75mi9"

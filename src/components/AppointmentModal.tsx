@@ -580,7 +580,19 @@ alert(JSON.stringify(appointmentError));
                 <label className="block font-sans text-xs font-semibold text-navy-700 uppercase tracking-wide mb-1.5">Time Slot *</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Clock size={16} className="text-gray-400" /></div>
-                  <select name="timeSlot" value={form.timeSlot} onChange={handleChange} disabled={!form.date || !form.location || availableTimeSlots[0]?.slot?.includes('closed')} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg font-sans text-sm bg-white focus:outline-none focus:ring-2 transition-colors appearance-none disabled:bg-gray-50 disabled:text-gray-400 ${errors.timeSlot ? 'border-red-300 focus:border-red-500 focus:ring-red-100' : 'border-gray-200 focus:border-teal-500 focus:ring-teal-100'}`}>
+<select
+  name="timeSlot"
+  value={form.timeSlot}
+  onChange={handleChange}
+  disabled={!form.date || !form.location}
+  style={{
+    WebkitAppearance: "menulist",
+    appearance: "auto",
+    color: "#000",
+    backgroundColor: "#fff",
+  }}
+  className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white text-black appearance-auto"
+>
                     <option value="">
                       {(!form.date || !form.location) ? 'Select date & location first' : 
                        (availableTimeSlots[0]?.slot?.includes('closed') ? availableTimeSlots[0].slot : 'Select a slot')}
